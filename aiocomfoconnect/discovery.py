@@ -1,4 +1,27 @@
-""" Bridge discovery """
+""" 
+Bridge discovery utilities for aiocomfoconnect.
+
+This module provides asynchronous UDP-based discovery of ComfoConnect LAN C bridges
+on the local network or at a specified host. It defines a protocol for sending
+discovery requests and parsing responses, and exposes a coroutine for performing
+the discovery process.
+
+Classes:
+    BridgeDiscoveryProtocol: asyncio.DatagramProtocol subclass for handling UDP discovery.
+Functions:
+    discover_bridges: Asynchronously discover available ComfoConnect bridges.
+
+Example:
+    import asyncio
+    from aiocomfoconnect.discovery import discover_bridges
+
+    async def main():
+        bridges = await discover_bridges(timeout=2)
+        for bridge in bridges:
+            print(f"Found bridge at {bridge.host} with UUID {bridge.uuid}")
+
+    asyncio.run(main())
+"""
 
 from __future__ import annotations
 
@@ -13,7 +36,23 @@ _LOGGER = logging.getLogger(__name__)
 
 
 class BridgeDiscoveryProtocol(asyncio.DatagramProtocol):
-    """UDP Protocol for the ComfoConnect LAN C bridge discovery."""
+    """
+    UDP Protocol for discovering ComfoConnect LAN C bridges on the local network.
+
+    This protocol sends a UDP broadcast or unicast discovery request and listens for responses
+    from available bridges. Discovered bridges are collected and returned as a list.
+
+    Args:
+        target (Optional[str]): Specific IP address to send the discovery request to. If None, a broadcast is sent.
+        timeout (int): Time in seconds to wait for responses before disconnecting. Defaults to 5.
+
+    Attributes:
+        _bridges (List[Bridge]): List of discovered Bridge instances.
+        _target (Optional[str]): Target IP address for discovery, or None for broadcast.
+        _future (asyncio.Future): Future that will be set with the list of discovered bridges.
+        transport (asyncio.transports.DatagramTransport): UDP transport for sending/receiving datagrams.
+        _timeout (asyncio.Handle): Handle for the timeout callback.
+    """
 
     def __init__(self, target: str = None, timeout: int = 5):
         loop = asyncio.get_running_loop()
@@ -25,7 +64,12 @@ class BridgeDiscoveryProtocol(asyncio.DatagramProtocol):
         self._timeout = loop.call_later(timeout, self.disconnect)
 
     def connection_made(self, transport: asyncio.transports.DatagramTransport):
-        """Called when a connection is made."""
+        """
+        Called when a connection is made and the UDP socket is ready.
+
+        Args:
+            transport (asyncio.transports.DatagramTransport): The UDP transport.
+        """
         _LOGGER.debug("Socket has been created")
         self.transport = transport
 
@@ -37,7 +81,13 @@ class BridgeDiscoveryProtocol(asyncio.DatagramProtocol):
             self.transport.sendto(b"\x0a\x00", ("<broadcast>", Bridge.PORT))
 
     def datagram_received(self, data: Union[bytes, str], addr: tuple[str | Any, int]):
-        """Called when some datagram is received."""
+        """
+        Called when a datagram is received.
+
+        Args:
+            data (bytes | str): The received datagram data.
+            addr (tuple): The address of the sender.
+        """
         if data == b"\x0a\x00":
             _LOGGER.debug("Ignoring discovery request from %s:%d", addr[0], addr[1])
             return
@@ -56,18 +106,47 @@ class BridgeDiscoveryProtocol(asyncio.DatagramProtocol):
             self.disconnect()
 
     def disconnect(self):
-        """Disconnect the socket."""
+        """
+        Disconnect the socket and resolve the discovery future.
+        """
         if self.transport:
             self.transport.close()
         self._future.set_result(self._bridges)
 
     def get_bridges(self):
-        """Return the discovered bridges."""
+        """
+        Return the discovered bridges future.
+
+        Returns:
+            asyncio.Future: Future that resolves to a list of Bridge objects.
+        """
         return self._future
 
 
 async def discover_bridges(host: str = None, timeout: int = 1, loop=None) -> List[Bridge]:
-    """Discover a bridge by IP."""
+    """
+    Discover ComfoConnect bridges on the local network or at a specified host.
+
+    This asynchronous function sends a UDP broadcast (or unicast if a host is specified)
+    to discover available ComfoConnect bridges. It returns a list of discovered Bridge
+    instances.
+
+    Args:
+        host (Optional[str]): The IP address of a specific bridge to discover. If None,
+            a broadcast is sent to discover all available bridges. Defaults to None.
+        timeout (int): The time in seconds to wait for responses. Defaults to 1.
+        loop (asyncio.AbstractEventLoop, optional): The event loop to use. If None,
+            the default event loop is used.
+
+    Returns:
+        List[Bridge]: A list of discovered Bridge objects.
+
+    Raises:
+        Any exceptions raised by the underlying asyncio transport or protocol.
+
+    Example:
+        bridges = await discover_bridges(timeout=2)
+    """
 
     if loop is None:
         loop = asyncio.get_event_loop()
