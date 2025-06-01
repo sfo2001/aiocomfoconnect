@@ -327,7 +327,7 @@ Two basic assumptions:
 
 If your ventilation is set to something else you need to try it out
 
-## Quick Overview of the network:
+## Quick Overview of the network
 
 Speed is 100kb/s, no CAN-FD but extended ID's are used (one exception: firmware uploading)
 Each device has an unique node-id smaller than 0x3F or 64. If a device detects that another device is writing using "his" id, the device will change its id
