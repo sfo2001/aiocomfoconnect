@@ -315,7 +315,15 @@ message: "ComfoAir Q450 B R RF ST Quality\000"
 
 For an overview about the known RMI Requests, check [PROTOCOL-RMI.md](PROTOCOL-RMI.md)
 
-# ComfoControl CAN/RMI Protocol
+## CAN/RMI Protocol
+
+See [PROTOCOL-RMI.md](./PROTOCOL-RMI.md) for details on the CAN/RMI protocol, including node/unit addressing, RMI command structure, and error codes.
+
+## PDO Sensors and Data Types
+
+See [PROTOCOL-PDO.md](./PROTOCOL-PDO.md) for a detailed list of PDO sensors, data types, and how to interpret PDO data.
+
+## ComfoControl CAN/RMI Protocol
 
 This document tries to outline the protocol as used by the newer "Q"-Models. Please note that some stuff might be version dependent, especially ranges. My
 findings are based on ~R1.6.2
