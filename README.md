@@ -173,7 +173,7 @@ Next, you can run this image by running `docker run aiocomfoconnect`. Any args f
 
 ## Interesting 3th party repositories
 
-* https://github.com/oysteing/comfoconnect-mqtt-bridge>
+- <https://github.com/oysteing/comfoconnect-mqtt-bridge>
 
 ## Further Reading
 
