@@ -64,7 +64,7 @@ Numbers are stored in little endian format.
 | 117  | CN_UINT8  | Fans: Exhaust fan duty                           | value in % (28%)                                                                                                 |
 | 118  | CN_UINT8  | Fans: Supply fan duty                            | value in % (29%)                                                                                                 |
 | 119  | CN_UINT16 | Fans: Exhaust fan flow                           | value in m³/h (110 m³/h)                                                                                         |
-| 120  | CN_UINT16 | Fans: Supply fan flow                            | value in m³/h (105 m³/h                                                                                          |
+| 120  | CN_UINT16 | Fans: Supply fan flow                            | value in m³/h (105 m³/h)                                                                                         |
 | 121  | CN_UINT16 | Fans: Exhaust fan speed                          | value in rpm (1069 rpm)                                                                                          |
 | 122  | CN_UINT16 | Fans: Supply fan speed                           | value in rpm (1113 rpm)                                                                                          |
 | 128  | CN_UINT16 | Power Consumption: Current Ventilation           | value in Watt (15 W)                                                                                             |
