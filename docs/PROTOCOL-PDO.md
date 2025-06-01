@@ -17,7 +17,7 @@ Numbers are stored in little endian format.
 | 10   | CN_TIME     |                           |
 | 11   | CN_VERSION  |                           |
 
-# Overview of known sensors
+## Overview of known sensors
 
 | pdid | type      | description                                      | examples                                                                                                         |
 |------|-----------|--------------------------------------------------|------------------------------------------------------------------------------------------------------------------|
