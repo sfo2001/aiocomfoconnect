@@ -31,7 +31,7 @@ msg_____________________________________________________________________________
 Command:
 
 ```sh
-$ echo "08022002" | xxd -r -p | protoc --decode=GatewayOperation zehnder.proto
+echo "08022002" | xxd -r -p | protoc --decode=GatewayOperation zehnder.proto
 ```
 
 ```javascript
@@ -42,7 +42,7 @@ reference: 2
 Message:
 
 ```sh
-$ echo "0a10a886190220044d68a07d85a2e3866fce10001a126950686f6e652076616e2044657374696e79" | xxd -r -p | protoc --decode=RegisterAppRequest zehnder.proto
+echo "0a10a886190220044d68a07d85a2e3866fce10001a126950686f6e652076616e2044657374696e79" | xxd -r -p | protoc --decode=RegisterAppRequest zehnder.proto
 ```
 
 ```javascript
