@@ -402,3 +402,35 @@ There are two ways of messaging them:
        can1  1F005D01   [5]  84 00 00 00 00
    ```
 
+## WiFi messages
+
+The protocol supports WiFi configuration and scanning. These messages are only used for configuring the Gateway's WiFi connection.
+
+- **WiFiSettingsRequest / WiFiSettingsConfirm**: Get or set the current WiFi mode and network.
+- **WiFiNetworksRequest / WiFiNetworksConfirm**: Scan for available WiFi networks. The confirm returns a list of visible networks and scan age.
+- **WiFiJoinNetworkRequest / WiFiJoinNetworkConfirm**: Join a specific WiFi network with SSID, password, and security type.
+
+WiFi enums:
+
+- `WiFiSecurity`: UNKNOWN=0, OPEN=1, WPA_WPA2=2, WEP=3, IEEE_802_1X=4
+- `WiFiMode`: AP=0, STA=1
+
+Example WiFiNetwork message fields:
+
+- `ssid` (string, max 32)
+- `security` (enum)
+- `rssi` (signal strength)
+
+## FUP (Firmware Upgrade Protocol) messages
+
+The protocol supports firmware upgrade and flash memory operations via FUP messages. These are only used within a session (local or supportUUID).
+
+- **CnFupReadRegisterRequest / CnFupReadRegisterConfirm**: Read a register from a node.
+- **CnFupProgramBeginRequest / CnFupProgramBeginConfirm**: Begin programming a memory block (erases flash, may take minutes).
+- **CnFupProgramRequest / CnFupProgramConfirm**: Write a chunk of data to flash.
+- **CnFupProgramEndRequest / CnFupProgramEndConfirm**: End programming and verify memory block.
+- **CnFupReadRequest / CnFupReadConfirm**: Read data from flash memory. Multiple confirms may be sent for one request.
+- **CnFupResetRequest / CnFupResetConfirm**: Reset a node after programming.
+- **CnWhoAmIRequest / CnWhoAmIConfirm**: Query node identity and zone.
+
+FUP messages use node IDs, register IDs, and chunked data fields as described in the .proto file.
