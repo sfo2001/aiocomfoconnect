@@ -77,7 +77,8 @@ class EventBus:
                 future.set_exception(event)
             else:
                 future.set_result(event)
-        del self.listeners[event_name]
+        if event_name in self.listeners:
+            del self.listeners[event_name]
 
 
 class Bridge:
