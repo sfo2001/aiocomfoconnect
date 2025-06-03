@@ -407,7 +407,7 @@ async def run_set_flow_for_speed(host: str, uuid: str, speed: Literal["away", "l
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(description="aiocomfoconnect CLI for ComfoConnect LAN C devices")
     parser.add_argument("--debug", "-d", help="Enable debug logging", default=False, action="store_true")
     subparsers = parser.add_subparsers(required=True, dest="action")
 
@@ -420,11 +420,11 @@ if __name__ == "__main__":
     p_register.add_argument("--uuid", help="UUID of this app", default=DEFAULT_UUID)
     p_register.add_argument("--name", help="Name of this app", default=DEFAULT_NAME)
 
-    p_register = subparsers.add_parser("deregister", help="deregister on a ComfoConnect LAN C device")
-    p_register.add_argument("uuid2", help="UUID of the app to deregister", default=None)
-    p_register.add_argument("--pin", help="PIN code to register on the bridge", default=DEFAULT_PIN)
-    p_register.add_argument("--host", help="Host address of the bridge")
-    p_register.add_argument("--uuid", help="UUID of this app", default=DEFAULT_UUID)
+    p_deregister = subparsers.add_parser("deregister", help="deregister on a ComfoConnect LAN C device")
+    p_deregister.add_argument("uuid2", help="UUID of the app to deregister", default=None)
+    p_deregister.add_argument("--pin", help="PIN code to register on the bridge", default=DEFAULT_PIN)
+    p_deregister.add_argument("--host", help="Host address of the bridge")
+    p_deregister.add_argument("--uuid", help="UUID of this app", default=DEFAULT_UUID)
 
     p_set_speed = subparsers.add_parser("set-speed", help="set the fan speed")
     p_set_speed.add_argument("speed", help="Fan speed", choices=["low", "medium", "high", "away"])
@@ -436,10 +436,10 @@ if __name__ == "__main__":
     p_set_mode.add_argument("--host", help="Host address of the bridge")
     p_set_mode.add_argument("--uuid", help="UUID of this app", default=DEFAULT_UUID)
 
-    p_set_mode = subparsers.add_parser("set-comfocool", help="set comfocool mode")
-    p_set_mode.add_argument("mode", help="Comfocool mode", choices=["auto", "off"])
-    p_set_mode.add_argument("--host", help="Host address of the bridge")
-    p_set_mode.add_argument("--uuid", help="UUID of this app", default=DEFAULT_UUID)
+    p_set_comfocool = subparsers.add_parser("set-comfocool", help="set comfocool mode")
+    p_set_comfocool.add_argument("mode", help="Comfocool mode", choices=["auto", "off"])
+    p_set_comfocool.add_argument("--host", help="Host address of the bridge")
+    p_set_comfocool.add_argument("--uuid", help="UUID of this app", default=DEFAULT_UUID)
 
     p_set_boost = subparsers.add_parser("set-boost", help="trigger or cancel a boost")
     p_set_boost.add_argument("mode", help="Boost mode", choices=["on", "off"])
@@ -457,15 +457,14 @@ if __name__ == "__main__":
     p_sensor.add_argument("--uuid", help="UUID of this app", default=DEFAULT_UUID)
     p_sensor.add_argument("--follow", "-f", help="Follow", default=False, action="store_true")
 
-    p_sensor = subparsers.add_parser("get-property", help="show a property value")
-    p_sensor.add_argument("unit", help="The Unit of the property", type=int)
-    p_sensor.add_argument("subunit", help="The Subunit of the property", type=int)
-    p_sensor.add_argument("property_id", help="The id of the property", type=int)
-    p_sensor.add_argument("property_type", help="The type of the property", type=int, default=0x09)
-
-    p_sensor.add_argument("--node_id", help="The Node ID of the query", type=int, default=0x01)
-    p_sensor.add_argument("--host", help="Host address of the bridge")
-    p_sensor.add_argument("--uuid", help="UUID of this app", default=DEFAULT_UUID)
+    p_property = subparsers.add_parser("get-property", help="show a property value")
+    p_property.add_argument("unit", help="The Unit of the property", type=int)
+    p_property.add_argument("subunit", help="The Subunit of the property", type=int)
+    p_property.add_argument("property_id", help="The id of the property", type=int)
+    p_property.add_argument("property_type", help="The type of the property", type=int, default=0x09)
+    p_property.add_argument("--node_id", help="The Node ID of the query", type=int, default=0x01)
+    p_property.add_argument("--host", help="Host address of the bridge")
+    p_property.add_argument("--uuid", help="UUID of this app", default=DEFAULT_UUID)
 
     p_get_flow_speed = subparsers.add_parser("get-flow-for-speed", help="Get m³/h for given speed")
     p_get_flow_speed.add_argument("speed", help="Fan speed", choices=["low", "medium", "high", "away"])
