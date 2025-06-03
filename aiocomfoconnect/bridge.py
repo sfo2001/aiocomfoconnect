@@ -63,7 +63,7 @@ class EventBus:
     def add_listener(self, event_name: int, future: asyncio.Future[Any]) -> None:
         """Add a listener to the event bus."""
         _LOGGER.debug("Adding listener for event %s", event_name)
-        if not self.listeners.get(event_name, None):
+        if event_name not in self.listeners:
             self.listeners[event_name] = {future}
         else:
             self.listeners[event_name].add(future)

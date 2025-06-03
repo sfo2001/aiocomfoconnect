@@ -125,7 +125,8 @@ class BridgeDiscoveryProtocol(asyncio.DatagramProtocol):
         """
         if self.transport:
             self.transport.close()
-        self._future.set_result(self._bridges)
+        if not self._future.done():
+            self._future.set_result(self._bridges)
 
     def get_bridges(self) -> asyncio.Future[list[Bridge]]:
         """
