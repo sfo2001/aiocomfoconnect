@@ -27,7 +27,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Any, List, Union, Optional
+from typing import Any
 
 import netifaces
 
@@ -56,16 +56,16 @@ class BridgeDiscoveryProtocol(asyncio.DatagramProtocol):
         _timeout (asyncio.Handle): Handle for the timeout callback.
     """
 
-    def __init__(self, target: Optional[str] = None, timeout: int = 5):
+    def __init__(self, target: str | None = None, timeout: int = 5):
         loop = asyncio.get_running_loop()
 
-        self._bridges: List[Bridge] = []
+        self._bridges: list[Bridge] = []
         self._target = target
         self._future = loop.create_future()
         self.transport = None
         self._timeout = loop.call_later(timeout, self.disconnect)
 
-    def connection_made(self, transport: asyncio.transports.DatagramTransport):
+    def connection_made(self, transport: asyncio.transports.DatagramTransport) -> None:
         """
         Called when a connection is made and the UDP socket is ready.
 
@@ -91,7 +91,7 @@ class BridgeDiscoveryProtocol(asyncio.DatagramProtocol):
             _LOGGER.debug("Sending discovery request to broadcast:%d (%s)", Bridge.PORT, broadcast_addr)
             self.transport.sendto(b"\x0a\x00", (broadcast_addr, Bridge.PORT))
 
-    def datagram_received(self, data: Union[bytes, str], addr: tuple[str | Any, int]):
+    def datagram_received(self, data: bytes | str, addr: tuple[str | Any, int]) -> None:
         """
         Called when a datagram is received.
 
@@ -119,7 +119,7 @@ class BridgeDiscoveryProtocol(asyncio.DatagramProtocol):
             self._timeout.cancel()
             self.disconnect()
 
-    def disconnect(self):
+    def disconnect(self) -> None:
         """
         Disconnect the socket and resolve the discovery future.
         """
@@ -127,7 +127,7 @@ class BridgeDiscoveryProtocol(asyncio.DatagramProtocol):
             self.transport.close()
         self._future.set_result(self._bridges)
 
-    def get_bridges(self):
+    def get_bridges(self) -> asyncio.Future[list[Bridge]]:
         """
         Return the discovered bridges future.
 
@@ -137,7 +137,7 @@ class BridgeDiscoveryProtocol(asyncio.DatagramProtocol):
         return self._future
 
 
-async def discover_bridges(host: Optional[str] = None, timeout: int = 5, loop=None) -> List[Bridge]:
+async def discover_bridges(host: str | None = None, timeout: int = 5, loop: asyncio.AbstractEventLoop | None = None) -> list[Bridge]:
     """
     Discover ComfoConnect bridges on the local network or at a specified host.
 

@@ -1,10 +1,11 @@
 """ Constants """
 
+from enum import IntEnum
+
 
 # PDO Types
-class PdoType:
+class PdoType(IntEnum):
     """Defines a PDO type."""
-
     TYPE_CN_BOOL = 0x00
     TYPE_CN_UINT8 = 0x01
     TYPE_CN_UINT16 = 0x02
@@ -63,7 +64,7 @@ SUBUNIT_06 = 0x06
 SUBUNIT_07 = 0x07
 SUBUNIT_08 = 0x08
 
-ERRORS_BASE = {
+ERRORS_BASE: dict[int, str] = {
     21: "DANGER! OVERHEATING! Two or more sensors are detecting an incorrect temperature. Ventilation has stopped.",
     22: "Temperature too high for ComfoAir Q (TEMP_HRU ERROR)",
     23: "The extract air temperature sensor has a malfunction (SENSOR_ETA ERROR)",
@@ -109,7 +110,7 @@ ERRORS_BASE = {
     69: "Postheater was present, but is no longer detected (POSTHEAT_CONNECT ERROR)",
 }
 
-ERRORS = {
+ERRORS: dict[int, str] = {
     **ERRORS_BASE,
     70: "Analog input 1 was present, but is no longer detected (ANALOG_1_PRES ERROR)",
     71: "Analog input 2 was present, but is no longer detected (ANALOG_2_PRES ERROR)",
@@ -148,7 +149,7 @@ ERRORS = {
     104: "CO₂ Sensor C error",
 }
 
-ERRORS_140 = {
+ERRORS_140: dict[int, str] = {
     **ERRORS_BASE,
     70: "ComfoHood was present, but is no longer detected (HOOD_CONNECT ERROR)",
     71: "ComfoCool was present, but is no longer detected (CCOOL_CONNECT ERROR)",

@@ -26,7 +26,7 @@ import asyncio
 import logging
 import struct
 from asyncio import StreamReader, StreamWriter
-from typing import Awaitable
+from typing import Awaitable, Callable, Any, Literal
 
 from google.protobuf.message import DecodeError
 from google.protobuf.message import Message as ProtobufMessage
@@ -57,11 +57,10 @@ class SelfDeregistrationError(Exception):
 
 class EventBus:
     """An event bus for async replies."""
-
     def __init__(self):
-        self.listeners = {}
+        self.listeners: dict[int, set[asyncio.Future[Any]]] = {}
 
-    def add_listener(self, event_name, future):
+    def add_listener(self, event_name: int, future: asyncio.Future[Any]) -> None:
         """Add a listener to the event bus."""
         _LOGGER.debug("Adding listener for event %s", event_name)
         if not self.listeners.get(event_name, None):
@@ -69,10 +68,10 @@ class EventBus:
         else:
             self.listeners[event_name].add(future)
 
-    def emit(self, event_name, event):
+    def emit(self, event_name: int, event: Any) -> None:
         """Emit an event to the event bus."""
         _LOGGER.debug("Emitting for event %s", event_name)
-        futures = self.listeners.get(event_name, [])
+        futures = self.listeners.get(event_name, set())
         for future in futures:
             if isinstance(event, Exception):
                 future.set_exception(event)
@@ -89,30 +88,28 @@ class Bridge:
     """
     PORT = 56747
 
-    def __init__(self, host: str, uuid: str, loop=None):
+    def __init__(self, host: str, uuid: str, loop: asyncio.AbstractEventLoop | None = None):
         self.host: str = host
         self.uuid: str = uuid
-        self._local_uuid: str = None
-
-        self._reader: StreamReader = None
-        self._writer: StreamWriter = None
+        self._local_uuid: str | None = None
+        self._reader: StreamReader | None = None
+        self._writer: StreamWriter | None = None
         self._reference = None
 
-        self._event_bus: EventBus = None
+        self._event_bus: EventBus | None = None
 
-        self.__sensor_callback_fn: callable = None
-        self.__alarm_callback_fn: callable = None
-
-        self._loop = loop or asyncio.get_running_loop()
+        self.__sensor_callback_fn: Callable[[int, int], None] | None = None
+        self.__alarm_callback_fn: Callable[[int, Any], None] | None = None
+        self._loop: asyncio.AbstractEventLoop = loop or asyncio.get_running_loop()
 
     def __repr__(self):
         return f"<Bridge {self.host}, UID={self.uuid}>"
 
-    def set_sensor_callback(self, callback: callable):
+    def set_sensor_callback(self, callback: Callable[[int, int], None]):
         """Set a callback to be called when a message is received."""
         self.__sensor_callback_fn = callback
 
-    def set_alarm_callback(self, callback: callable):
+    def set_alarm_callback(self, callback: Callable[[int, Any], None]):
         """Set a callback to be called when an alarm is received."""
         self.__alarm_callback_fn = callback
 
@@ -158,7 +155,7 @@ class Bridge:
         """Returns True if the bridge is connected."""
         return self._writer is not None and not self._writer.is_closing()
 
-    async def _send(self, request, request_type, params: dict = None, reply: bool = True) -> Message:
+    async def _send(self, request: Callable[[], Any], request_type: Any, params: dict[str, Any] | None = None, reply: bool = True) -> 'Message':
         """Sends a command and wait for a response if the request is known to return a result."""
         # Check if we are actually connected
         if not self.is_connected():
@@ -281,7 +278,7 @@ class Bridge:
         except DecodeError as exc:
             _LOGGER.error("Failed to decode message: %s", exc)
 
-    def cmd_start_session(self, take_over: bool = False) -> Awaitable[Message]:
+    def cmd_start_session(self, take_over: bool = False) -> Awaitable['Message']:
         """Starts the session on the device by logging in and optionally disconnecting an already existing session."""
         _LOGGER.debug("StartSessionRequest")
         # pylint: disable=no-member
@@ -291,7 +288,7 @@ class Bridge:
             {"takeover": take_over},
         )
 
-    def cmd_close_session(self) -> Awaitable[Message]:
+    def cmd_close_session(self) -> Awaitable['Message']:
         """Stops the current session."""
         _LOGGER.debug("CloseSessionRequest")
         # pylint: disable=no-member
@@ -301,7 +298,7 @@ class Bridge:
             reply=False,  # Don't wait for a reply
         )
 
-    def cmd_list_registered_apps(self) -> Awaitable[Message]:
+    def cmd_list_registered_apps(self) -> Awaitable['Message']:
         """Returns a list of all the registered clients."""
         _LOGGER.debug("ListRegisteredAppsRequest")
         # pylint: disable=no-member
@@ -310,7 +307,7 @@ class Bridge:
             zehnder_pb2.GatewayOperation.ListRegisteredAppsRequestType,
         )
 
-    def cmd_register_app(self, uuid: str, device_name: str, pin: int) -> Awaitable[Message]:
+    def cmd_register_app(self, uuid: str, device_name: str, pin: int) -> Awaitable['Message']:
         """Register a new app by specifying our own uuid, device_name and pin code."""
         _LOGGER.debug("RegisterAppRequest")
         # pylint: disable=no-member
@@ -324,7 +321,7 @@ class Bridge:
             },
         )
 
-    def cmd_deregister_app(self, uuid: str) -> Awaitable[Message]:
+    def cmd_deregister_app(self, uuid: str) -> Awaitable['Message']:
         """Remove the specified app from the registration list."""
         _LOGGER.debug("DeregisterAppRequest")
         if uuid == self._local_uuid:
@@ -337,7 +334,7 @@ class Bridge:
             {"uuid": bytes.fromhex(uuid)},
         )
 
-    def cmd_version_request(self) -> Awaitable[Message]:
+    def cmd_version_request(self) -> Awaitable['Message']:
         """Returns version information."""
         _LOGGER.debug("VersionRequest")
         # pylint: disable=no-member
@@ -346,7 +343,7 @@ class Bridge:
             zehnder_pb2.GatewayOperation.VersionRequestType,
         )
 
-    def cmd_time_request(self) -> Awaitable[Message]:
+    def cmd_time_request(self) -> Awaitable['Message']:
         """Returns the current time on the device."""
         _LOGGER.debug("CnTimeRequest")
         # pylint: disable=no-member
@@ -355,7 +352,7 @@ class Bridge:
             zehnder_pb2.GatewayOperation.CnTimeRequestType,
         )
 
-    def cmd_rmi_request(self, message, node_id: int = 1) -> Awaitable[Message]:
+    def cmd_rmi_request(self, message: Any, node_id: int = 1) -> Awaitable['Message']:
         """
         Sends a Remote Method Invocation (RMI) request to a specified node.
 
@@ -375,7 +372,7 @@ class Bridge:
             {"nodeId": node_id or 1, "message": message},
         )
 
-    def cmd_rpdo_request(self, pdid: int, pdo_type: int = 1, zone: int = 1, timeout=None) -> Awaitable[Message]:
+    def cmd_rpdo_request(self, pdid: int, pdo_type: int = 1, zone: int = 1, timeout: int | None = None) -> Awaitable['Message']:
         """Register a RPDO request."""
         _LOGGER.debug("CnRpdoRequest")
         # pylint: disable=no-member
@@ -467,7 +464,7 @@ class Message:
         zehnder_pb2.GatewayOperation.CnFupResetConfirmType: zehnder_pb2.CnFupResetConfirm,
     }
 
-    def __init__(self, cmd, msg, src, dst):
+    def __init__(self, cmd: ProtobufMessage, msg: ProtobufMessage, src: str, dst: str):
         self.cmd: ProtobufMessage = cmd
         self.msg: ProtobufMessage = msg
         self.src: str = src
@@ -486,7 +483,7 @@ class Message:
         return msg_len_buf + bytes.fromhex(self.src) + bytes.fromhex(self.dst) + cmd_len_buf + cmd_buf + msg_buf
 
     @classmethod
-    def decode(cls, packet) -> Message:
+    def decode(cls, packet: bytes) -> 'Message':
         """Decode a packet from a byte buffer."""
         src_buf = packet[0:16]
         dst_buf = packet[16:32]

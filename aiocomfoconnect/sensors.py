@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Callable, Dict
+from typing import Callable
 
 from .const import PdoType
 from .util import calculate_airflow_constraints
@@ -95,11 +95,11 @@ class Sensor:
     unit: str | None
     id: int  # pylint: disable=invalid-name
     type: int
-    value_fn: Callable[[int], any] = None
+    value_fn: Callable[[int], any] | None = None
 
 
 # For more information, see PROTOCOL-PDO.md
-SENSORS: Dict[int, Sensor] = {
+SENSORS: dict[int, Sensor] = {
     SENSOR_DEVICE_STATE: Sensor("Device State", None, 16, PdoType.TYPE_CN_UINT8),
     SENSOR_CHANGING_FILTERS: Sensor("Changing filters", None, 18, PdoType.TYPE_CN_UINT8),
     33: Sensor("sensor_33", None, 33, PdoType.TYPE_CN_UINT8),

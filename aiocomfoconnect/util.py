@@ -5,12 +5,12 @@ from __future__ import annotations
 from aiocomfoconnect.const import PdoType
 
 
-def bytestring(arr):
+def bytestring(arr: list[int | bytes]) -> bytes:
     """Join an array of bytes into a bytestring. Unlike `bytes()`, this method supports a mixed array with integers and bytes."""
     return b"".join([i if isinstance(i, bytes) else bytes([i]) for i in arr])
 
 
-def bytearray_to_bits(arr):
+def bytearray_to_bits(arr: bytes | bytearray) -> list[int]:
     """
     Convert a bytearray or bytes-like object to a list of indices of set bits.
 
@@ -37,7 +37,7 @@ def bytearray_to_bits(arr):
     return bits
 
 
-def uint_to_bits(value):
+def uint_to_bits(value: int) -> list[int]:
     """
     Convert an unsigned integer to a list of set bit positions.
 
@@ -47,8 +47,8 @@ def uint_to_bits(value):
     Returns:
         list[int]: A list containing the positions of bits set to 1 in the input value.
     """
-    bits = []
-    j = 0
+    bits: list[int] = []
+    j: int = 0
     for i in range(64):
         if value & (1 << i):
             bits.append(j)
@@ -56,7 +56,7 @@ def uint_to_bits(value):
     return bits
 
 
-def version_decode(version):
+def version_decode(version: int) -> str:
     """
     Decode the version number to a human-readable string.
 
@@ -83,12 +83,12 @@ def version_decode(version):
     return f"{v_1}{v_2}.{v_3}.{v_4}"
 
 
-def pdo_to_can(pdo, node_id=1):
+def pdo_to_can(pdo: int, node_id: int = 1) -> str:
     """Convert a PDO-ID to a CAN-ID."""
     return ((pdo << 14) + 0x40 + node_id).to_bytes(4, byteorder="big").hex()
 
 
-def can_to_pdo(can, node_id=1):
+def can_to_pdo(can: str | bytes | bytearray, node_id: int = 1) -> int:
     """
     Convert a CAN-ID to a PDO-ID.
 
@@ -106,7 +106,7 @@ def can_to_pdo(can, node_id=1):
     return (int(can, 16) - 0x40 - node_id) >> 14
 
 
-def calculate_airflow_constraints(value):
+def calculate_airflow_constraints(value: int) -> list[str] | None:
     """
     Calculate the airflow constraints based on the bitshift value.
 
@@ -120,7 +120,7 @@ def calculate_airflow_constraints(value):
     if 45 not in bits:
         return None
 
-    constraints = []
+    constraints: list[str] = []
     if 2 in bits or 3 in bits:
         constraints.append("Resistance")
     if 4 in bits:
