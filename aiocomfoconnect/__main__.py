@@ -313,7 +313,7 @@ async def run_show_sensor(host: str, uuid: str, sensor: int, follow=False):
         print("Could not connect to bridge. Please register first.")
         sys.exit(1)
 
-    if not sensor in SENSORS:
+    if sensor not in SENSORS:
         print(f"Unknown sensor with ID {sensor}")
         sys.exit(1)
 
