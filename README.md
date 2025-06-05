@@ -7,11 +7,15 @@ It's compatible with Python 3.10 and higher.
 
 ## Installation
 
+> **Note:** On Windows, you may need to use `pip` or `py -m pip` instead of `pip3` depending on your Python installation.
+
 ```shell
 pip3 install aiocomfoconnect
 ```
 
 ## CLI Usage
+
+> **Note:** The following commands work on Linux, macOS, and Windows as long as Python is in your PATH. On Windows, you may need to use `python` or `py` instead of `python3`.
 
 ```shell
 python -m aiocomfoconnect --help
@@ -150,8 +154,9 @@ if __name__ == "__main__":
 
 ### Decode network traffic
 
-You can use the `scripts/decode_pcap.py` file to decode network traffic between the Mobile App and the ComfoConnect LAN C.
-Make sure that the first TCP session in the capture is the connection between the bridge and the app. It's therefore recommended to start the capture before you open the app.
+> **Note:** The following example uses `tcpdump`, which is available on Linux and macOS. On Windows, use Wireshark or another packet capture tool to capture network traffic. Make sure the first TCP session in the capture is the connection between the bridge and the app. It is recommended to start the capture before opening the app.
+
+You can use the `scripts/decode_pcap.py` file to decode network traffic between the Mobile App and the ComfoConnect LAN C. Make sure that the first TCP session in the capture is the connection between the bridge and the app. It's therefore recommended to start the capture before you open the app.
 
 ```shell
 sudo tcpdump -i any -s 0 -w /tmp/capture.pcap tcp and port 56747
