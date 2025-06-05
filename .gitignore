@@ -1,6 +1,32 @@
-*.py
-.idea/
-__pycache__
-dist/
+# Temporary pcap files
 script/*.pcap
+
+# Bytecode files
+*.py[oc]
+__pycache__/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Python-generated files
+build/
+dist/
+
+# uv cache
+.uv-cache/
+
+# Visual Studio Code Settings and files
+.vscode
+.idea/
+
+# Virtual environments
+.venv
+
+# Local environments
 .env
+
+# OS files
+.DS_Store
+Thumbs.db
