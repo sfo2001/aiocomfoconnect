@@ -31,7 +31,7 @@ msg_____________________________________________________________________________
 Command:
 
 ```sh
-$ echo "08022002" | xxd -r -p | protoc --decode=GatewayOperation zehnder.proto
+echo "08022002" | xxd -r -p | protoc --decode=GatewayOperation zehnder.proto
 ```
 
 ```javascript
@@ -42,7 +42,7 @@ reference: 2
 Message:
 
 ```sh
-$ echo "0a10a886190220044d68a07d85a2e3866fce10001a126950686f6e652076616e2044657374696e79" | xxd -r -p | protoc --decode=RegisterAppRequest zehnder.proto
+echo "0a10a886190220044d68a07d85a2e3866fce10001a126950686f6e652076616e2044657374696e79" | xxd -r -p | protoc --decode=RegisterAppRequest zehnder.proto
 ```
 
 ```javascript
@@ -60,7 +60,7 @@ Buffers.
 
 Raw response data:
 
-```
+```text
 12230a0d3139322e3136382e312e32313312100000000000251010800170b3d54264b41801
 ```
 
@@ -327,7 +327,7 @@ Two basic assumptions:
 
 If your ventilation is set to something else you need to try it out
 
-## Quick Overview of the network:
+## Quick Overview of the network
 
 Speed is 100kb/s, no CAN-FD but extended ID's are used (one exception: firmware uploading)
 Each device has an unique node-id smaller than 0x3F or 64. If a device detects that another device is writing using "his" id, the device will change its id
@@ -341,7 +341,7 @@ Firmware-Updates are sent using 11-bit IDs or 1F800000
 
 RMI-Commands are sent and received using extended-IDs:
 
-```
+```text
     1F000000
     + SrcAddr        << 0 6 bits  source Node-Id
     + DstAddr        << 6 6 bits  destination Node-Id
@@ -354,7 +354,7 @@ RMI-Commands are sent and received using extended-IDs:
 
 Some Examples:
 
-```
+```text
 1F015057: 11111 0000 0001 0101 00 0001 010111 multi-msg request with SeqNr = 0
 1F011074: 11111 0000 0001 0001 00 0001 110100 single-msg request with SeqNr = 0
 1F071074: 11111 0000 0111 0001 00 0001 110100 single-msg request with SeqNr = 3
@@ -375,7 +375,8 @@ There are two ways of messaging them:
    Example:
    Request: `01 1D 01 10 0A` (Get (`0x01`) from Unit `1D 01` (`TEMPHUMCONTROL 01`) exact value (`10`) variable `0A` (`Target Temperature Warm`))
    Response: `E6 00` little-endian encoded, `0x00E6 = 230 = 23.0°C`
-   ```
+
+   ```text
        can1  1F011074   [5]  01 1D 01 10 0A
        can1  1F001D01   [2]  E6 00
    ```
@@ -385,7 +386,8 @@ There are two ways of messaging them:
 
    Example:
    CMI-Request: `80 03 01`, answer `00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00`
-   ```
+
+   ```text
        can1  1F011074   [3]  80 03 01  # I send
        can1  1F005D01   [8]  00 00 00 00 00 00 00 00  # Answer
        can1  1F005D01   [8]  01 00 00 00 00 00 00 00

@@ -16,27 +16,27 @@ pip3 install aiocomfoconnect
 ## CLI Usage
 
 ```shell
-$ python -m aiocomfoconnect --help
+python -m aiocomfoconnect --help
 
-$ python -m aiocomfoconnect discover
+python -m aiocomfoconnect discover
 
-$ python -m aiocomfoconnect register --host 192.168.1.213
+python -m aiocomfoconnect register --host 192.168.1.213
 
-$ python -m aiocomfoconnect set-speed away --host 192.168.1.213
-$ python -m aiocomfoconnect set-speed low --host 192.168.1.213
-$ python -m aiocomfoconnect set-mode auto --host 192.168.1.213
-$ python -m aiocomfoconnect set-speed medium --host 192.168.1.213
-$ python -m aiocomfoconnect set-speed high --host 192.168.1.213
-$ python -m aiocomfoconnect set-boost on --host 192.168.1.213 --timeout 1200
+python -m aiocomfoconnect set-speed away --host 192.168.1.213
+python -m aiocomfoconnect set-speed low --host 192.168.1.213
+python -m aiocomfoconnect set-mode auto --host 192.168.1.213
+python -m aiocomfoconnect set-speed medium --host 192.168.1.213
+python -m aiocomfoconnect set-speed high --host 192.168.1.213
+python -m aiocomfoconnect set-boost on --host 192.168.1.213 --timeout 1200
 
-$ python -m aiocomfoconnect set-comfocool auto --host 192.168.1.213
-$ python -m aiocomfoconnect set-comfocool off --host 192.168.1.213
+python -m aiocomfoconnect set-comfocool auto --host 192.168.1.213
+python -m aiocomfoconnect set-comfocool off --host 192.168.1.213
 
-$ python -m aiocomfoconnect show-sensors --host 192.168.1.213
-$ python -m aiocomfoconnect show-sensor 276 --host 192.168.1.213
-$ python -m aiocomfoconnect show-sensor 276 --host 192.168.1.213 -f
+python -m aiocomfoconnect show-sensors --host 192.168.1.213
+python -m aiocomfoconnect show-sensor 276 --host 192.168.1.213
+python -m aiocomfoconnect show-sensor 276 --host 192.168.1.213 -f
 
-$ python -m aiocomfoconnect get-property --host 192.168.1.213 1 1 8 9  # Unit 0x01, SubUnit 0x01, Property 0x08, Type STRING. See PROTOCOL-RMI.md
+python -m aiocomfoconnect get-property --host 192.168.1.213 1 1 8 9  # Unit 0x01, SubUnit 0x01, Property 0x08, Type STRING. See PROTOCOL-RMI.md
 ```
 
 ## Available methods
@@ -156,8 +156,8 @@ You can use the `scripts/decode_pcap.py` file to decode network traffic between 
 Make sure that the first TCP session in the capture is the connection between the bridge and the app. It's therefore recommended to start the capture before you open the app.
 
 ```shell
-$ sudo tcpdump -i any -s 0 -w /tmp/capture.pcap tcp and port 56747
-$ python3 script/decode_pcap.py /tmp/capture.pcap
+sudo tcpdump -i any -s 0 -w /tmp/capture.pcap tcp and port 56747
+python3 script/decode_pcap.py /tmp/capture.pcap
 ```
 
 ### Generate zehnder_pb2.py file
@@ -175,4 +175,10 @@ Next, you can run this image by running `docker run aiocomfoconnect`. Any args f
 
 ## Interesting 3th party repositories
 
-* https://github.com/oysteing/comfoconnect-mqtt-bridge
+- <https://github.com/oysteing/comfoconnect-mqtt-bridge>
+
+## Further Reading
+
+- [Protocol Details](./PROTOCOL.md)
+- [CAN/RMI Protocol](./PROTOCOL-RMI.md)
+- [PDO Sensors and Data Types](./PROTOCOL-PDO.md)
