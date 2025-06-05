@@ -65,10 +65,10 @@ There are three commands which always exist on a given Unit:
   Syntax: `01 Unit SubUnit Type Property`
 
   The `Type` can be one of the following:
-    - 0x00: None
-    - 0x10: Actual value
-    - 0x20: Range
-    - 0x40: Step size
+  - 0x00: None
+  - 0x10: Actual value
+  - 0x20: Range
+  - 0x40: Step size
 
   Each writable property may have a range & step size. You can get those values by using the `0x20` and `0x40` `Type` values. You can request multiple types
   at the same time by OR'ing the value.
@@ -87,11 +87,11 @@ There are three commands which always exist on a given Unit:
 
   Example: Request: `02 01 01 01 15 03 04 06 05 14`, Response: `\02 BEA000000000000\00 \00\10\10\c0 \02 ComfoAirQ\00`
   This reads the following property values:
-    - 0x03: ???
-    - 0x04: Serial Number
-    - 0x06: Firmware version
-    - 0x05: ???
-    - 0x14: Ventilation Unit Name
+  - 0x03: ???
+  - 0x04: Serial Number
+  - 0x06: Firmware version
+  - 0x05: ???
+  - 0x14: Ventilation Unit Name
 
 - `0x03`: Set a single property
 
