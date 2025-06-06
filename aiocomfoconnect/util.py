@@ -11,7 +11,22 @@ def bytestring(arr):
 
 
 def bytearray_to_bits(arr):
-    """Convert a bytearray to a list of set bits."""
+    """
+    Convert a bytearray or bytes-like object to a list of indices of set bits.
+
+    Args:
+        arr (bytes or bytearray): The input bytearray or bytes-like object to convert.
+
+    Returns:
+        list[int]: A list of integers representing the indices (bit positions) where bits are set to 1,
+                   counting from the least significant bit of the first byte as index 0.
+
+    Example:
+        >>> bytearray_to_bits(bytearray([0b00000001, 0b00000010]))
+        [0, 9]
+    """
+    if not isinstance(arr, (bytes, bytearray)):
+        raise TypeError("Input must be a bytes or bytearray object")
     bits = []
     j = 0
     for byte in arr:
@@ -23,7 +38,15 @@ def bytearray_to_bits(arr):
 
 
 def uint_to_bits(value):
-    """Convert an unsigned integer to a list of set bits."""
+    """
+    Convert an unsigned integer to a list of set bit positions.
+
+    Args:
+        value (int): The unsigned integer to convert.
+
+    Returns:
+        list[int]: A list containing the positions of bits set to 1 in the input value.
+    """
     bits = []
     j = 0
     for i in range(64):
@@ -34,7 +57,15 @@ def uint_to_bits(value):
 
 
 def version_decode(version):
-    """Decode the version number to a string."""
+    """
+    Decode the version number to a human-readable string.
+
+    Args:
+        version (int): The encoded version number as an integer.
+
+    Returns:
+        str: The decoded version string in the format '<type><major>.<minor>.<patch>'.
+    """
     v_1 = (version >> 30) & 3
     v_2 = (version >> 20) & 1023
     v_3 = (version >> 10) & 1023
@@ -58,12 +89,33 @@ def pdo_to_can(pdo, node_id=1):
 
 
 def can_to_pdo(can, node_id=1):
-    """Convert a CAN-ID to a PDO-ID."""
+    """
+    Convert a CAN-ID to a PDO-ID.
+
+    This function takes a CAN-ID and a node ID, then computes
+    the corresponding PDO-ID by subtracting 0x40 and the node ID from the integer value
+    of the CAN-ID, and right-shifting the result by 14 bits.
+
+    Args:
+        can (str | bytes | bytearray): The CAN-ID .
+        node_id (int, optional): The node ID to subtract from the CAN-ID. Defaults to 1.
+
+    Returns:
+        int: The computed PDO-ID.
+    """
     return (int(can, 16) - 0x40 - node_id) >> 14
 
 
 def calculate_airflow_constraints(value):
-    """Calculate the airflow constraints based on the bitshift value."""
+    """
+    Calculate the airflow constraints based on the bitshift value.
+
+    Args:
+        value (int): The bitmask integer representing airflow constraints.
+
+    Returns:
+        list[str] | None: A list of constraint names if constraints are present, otherwise None.
+    """
     bits = uint_to_bits(value)
     if 45 not in bits:
         return None
@@ -128,7 +180,24 @@ def calculate_airflow_constraints(value):
 
 
 def encode_pdo_value(value: int, pdo_type: PdoType) -> bytes:
-    """Encode a PDO value to the raw equivalent."""
+    """
+    Encode a PDO (Process Data Object) value to its raw byte representation based on the specified PDO type.
+    Args:
+        value (int): The integer value to encode.
+        pdo_type (PdoType): The PDO type that determines the encoding format.
+    Returns:
+        bytes: The encoded value as a bytes object in little-endian order.
+    Raises:
+        ValueError: If the provided PDO type is not supported.
+    Supported PDO types:
+        - PdoType.TYPE_CN_BOOL
+        - PdoType.TYPE_CN_UINT8
+        - PdoType.TYPE_CN_UINT16
+        - PdoType.TYPE_CN_UINT32
+        - PdoType.TYPE_CN_INT8
+        - PdoType.TYPE_CN_INT16
+        - PdoType.TYPE_CN_INT64
+    """
     match pdo_type:
         case PdoType.TYPE_CN_BOOL:
             return bool(value).to_bytes()

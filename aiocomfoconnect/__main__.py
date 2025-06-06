@@ -1,4 +1,21 @@
-""" aiocomfoconnect CLI application """
+""" aiocomfoconnect CLI application
+
+This module provides a command-line interface for interacting with ComfoConnect LAN C devices.
+It supports discovering bridges, registering/deregistering apps, setting fan speed and mode,
+showing sensor values, and more.
+
+Usage:
+    python -m aiocomfoconnect --help
+
+Example:
+    python -m aiocomfoconnect discover
+    python -m aiocomfoconnect register --pin 1234 --name "My App"
+    python -m aiocomfoconnect set-speed high
+
+Available actions:
+    discover, register, deregister, set-speed, set-mode, set-comfocool, set-boost,
+    show-sensors, show-sensor, get-property, get-flow-for-speed, set-flow-for-speed
+"""
 
 from __future__ import annotations
 
@@ -26,7 +43,7 @@ _LOGGER = logging.getLogger(__name__)
 
 
 async def main(args):
-    """Main function."""
+    """Main entry point for the CLI."""
     if args.action == "discover":
         await run_discover(args.host)
 
@@ -204,7 +221,7 @@ async def run_set_comfocool(host: str, uuid: str, mode: Literal["auto", "off"]):
 
 
 async def run_set_boost(host: str, uuid: str, mode: Literal["on", "off"], timeout: int):
-    """Set boost."""
+    """Set boost mode."""
     # Discover bridge so we know the UUID
     bridges = await discover_bridges(host)
     if not bridges:
@@ -274,7 +291,7 @@ async def run_show_sensors(host: str, uuid: str):
 
 
 async def run_show_sensor(host: str, uuid: str, sensor: int, follow=False):
-    """Show a sensor."""
+    """Show a single sensor value."""
     result = Future()
 
     # Discover bridge so we know the UUID
