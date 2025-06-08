@@ -40,6 +40,8 @@ from .exceptions import (
 )
 from .protobuf import zehnder_pb2
 
+from aiocomfoconnect.decorators import log_call
+
 _LOGGER = logging.getLogger(__name__)
 
 TIMEOUT: int = 5
@@ -324,6 +326,7 @@ class Bridge:
         except DecodeError as exc:
             _LOGGER.error(f"Failed to decode message: {exc}")
 
+    @log_call
     def cmd_start_session(self, take_over: bool = False) -> Awaitable[Message]:
         """Start the session on the device by logging in and optionally disconnecting an existing session.
 
@@ -333,38 +336,38 @@ class Bridge:
         Returns:
             Awaitable[Message]: Awaitable resolving to the response message.
         """
-        _LOGGER.debug("StartSessionRequest")
         return self._send(
             zehnder_pb2.StartSessionRequest,
             zehnder_pb2.GatewayOperation.StartSessionRequestType,
             {"takeover": take_over},
         )
 
+    @log_call
     def cmd_close_session(self) -> Awaitable[Message]:
         """Stop the current session.
 
         Returns:
             Awaitable[Message]: Awaitable resolving to the response message.
         """
-        _LOGGER.debug("CloseSessionRequest")
         return self._send(
             zehnder_pb2.CloseSessionRequest,
             zehnder_pb2.GatewayOperation.CloseSessionRequestType,
             reply=False,
         )
 
+    @log_call
     def cmd_list_registered_apps(self) -> Awaitable[Message]:
         """Return a list of all registered clients.
 
         Returns:
             Awaitable[Message]: Awaitable resolving to the response message.
         """
-        _LOGGER.debug("ListRegisteredAppsRequest")
         return self._send(
             zehnder_pb2.ListRegisteredAppsRequest,
             zehnder_pb2.GatewayOperation.ListRegisteredAppsRequestType,
         )
 
+    @log_call
     def cmd_register_app(self, uuid: str, device_name: str, pin: int) -> Awaitable[Message]:
         """Register a new app by specifying uuid, device_name, and pin code.
 
@@ -376,7 +379,6 @@ class Bridge:
         Returns:
             Awaitable[Message]: Awaitable resolving to the response message.
         """
-        _LOGGER.debug("RegisterAppRequest")
         return self._send(
             zehnder_pb2.RegisterAppRequest,
             zehnder_pb2.GatewayOperation.RegisterAppRequestType,
@@ -387,6 +389,7 @@ class Bridge:
             },
         )
 
+    @log_call
     def cmd_deregister_app(self, uuid: str) -> Awaitable[Message]:
         """Remove the specified app from the registration list.
 
@@ -399,7 +402,6 @@ class Bridge:
         Raises:
             SelfDeregistrationError: If attempting to deregister self.
         """
-        _LOGGER.debug("DeregisterAppRequest")
         if uuid == self._local_uuid:
             raise SelfDeregistrationError("You should not deregister yourself.")
         return self._send(
@@ -408,30 +410,31 @@ class Bridge:
             {"uuid": bytes.fromhex(uuid)},
         )
 
+    @log_call
     def cmd_version_request(self) -> Awaitable[Message]:
         """Return version information.
 
         Returns:
             Awaitable[Message]: Awaitable resolving to the response message.
         """
-        _LOGGER.debug("VersionRequest")
         return self._send(
             zehnder_pb2.VersionRequest,
             zehnder_pb2.GatewayOperation.VersionRequestType,
         )
 
+    @log_call
     def cmd_time_request(self) -> Awaitable[Message]:
         """Return the current time on the device.
 
         Returns:
             Awaitable[Message]: Awaitable resolving to the response message.
         """
-        _LOGGER.debug("CnTimeRequest")
         return self._send(
             zehnder_pb2.CnTimeRequest,
             zehnder_pb2.GatewayOperation.CnTimeRequestType,
         )
 
+    @log_call
     def cmd_rmi_request(self, message: bytes, node_id: int = 1) -> Awaitable[Message]:
         """Send a Remote Method Invocation (RMI) request to a specified node.
 
@@ -442,13 +445,13 @@ class Bridge:
         Returns:
             Awaitable[Message]: Awaitable resolving to the response message.
         """
-        _LOGGER.debug("CnRmiRequest")
         return self._send(
             zehnder_pb2.CnRmiRequest,
             zehnder_pb2.GatewayOperation.CnRmiRequestType,
             {"nodeId": node_id or 1, "message": message},
         )
 
+    @log_call
     def cmd_rpdo_request(
         self, pdid: int, pdo_type: int = 1, zone: int = 1, timeout: int | None = None
     ) -> Awaitable[Message]:
@@ -463,20 +466,19 @@ class Bridge:
         Returns:
             Awaitable[Message]: Awaitable resolving to the response message.
         """
-        _LOGGER.debug("CnRpdoRequest")
         return self._send(
             zehnder_pb2.CnRpdoRequest,
             zehnder_pb2.GatewayOperation.CnRpdoRequestType,
             {"pdid": pdid, "type": pdo_type, "zone": zone or 1, "timeout": timeout},
         )
 
+    @log_call
     def cmd_keepalive(self) -> Awaitable[Message]:
         """Send a keepalive message.
 
         Returns:
             Awaitable[Message]: Awaitable resolving to the response message.
         """
-        _LOGGER.debug("KeepAlive")
         return self._send(
             zehnder_pb2.KeepAlive,
             zehnder_pb2.GatewayOperation.KeepAliveType,
