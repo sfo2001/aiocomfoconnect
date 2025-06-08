@@ -215,3 +215,43 @@ class ComfoCoolMode:
 
     AUTO = "auto"
     OFF = "off"
+
+
+# Magic numbers and bit positions for airflow constraints
+CAN_ID_OFFSET: int = 0x40
+PDO_SHIFT: int = 14
+UINT64_BITS: int = 64
+
+# Airflow constraint bit positions
+CONSTRAINT_BITS: dict[int, str] = {
+    2: "Resistance",
+    3: "Resistance",
+    4: "PreheaterNegative",
+    5: "NoiseGuard",
+    6: "ResistanceGuard",
+    7: "NoiseGuard",
+    8: "ResistanceGuard",
+    9: "FrostProtection",
+    10: "Bypass",
+    12: "AnalogInput1",
+    13: "AnalogInput2",
+    14: "AnalogInput3",
+    15: "AnalogInput4",
+    16: "Hood",
+    18: "AnalogPreset",
+    19: "ComfoCool",
+    22: "PreheaterPositive",
+    23: "RFSensorFlowPreset",
+    24: "RFSensorFlowProportional",
+    25: "TemperatureComfort",
+    26: "HumidityComfort",
+    27: "HumidityProtection",
+    47: "CO2ZoneX1",
+    48: "CO2ZoneX2",
+    49: "CO2ZoneX3",
+    50: "CO2ZoneX4",
+    51: "CO2ZoneX5",
+    52: "CO2ZoneX6",
+    53: "CO2ZoneX7",
+    54: "CO2ZoneX8",
+}
