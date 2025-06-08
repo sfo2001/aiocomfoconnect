@@ -1,4 +1,24 @@
-""" ComfoConnect Bridge API """
+""" ComfoConnect Bridge API
+
+This module provides the Bridge class for interacting with the Zehnder ComfoConnect LAN C API.
+It manages the connection, message sending/receiving, and provides methods for session management,
+device registration, and data requests. It also defines the EventBus and Message classes for internal use.
+
+Classes:
+    Bridge: Main class for managing a connection to a ComfoConnect bridge device.
+    EventBus: Simple event bus for async replies.
+    Message: Encapsulates a message sent to/from the bridge.
+    SelfDeregistrationError: Exception for self-deregistration attempts.
+
+Exceptions:
+    Raises various custom exceptions for connection errors, protocol errors, and invalid operations.
+
+Example:
+    from aiocomfoconnect.bridge import Bridge
+    bridge = Bridge(host, uuid)
+    await bridge._connect(local_uuid)
+    ...
+"""
 
 from __future__ import annotations
 
@@ -62,8 +82,11 @@ class EventBus:
 
 
 class Bridge:
-    """ComfoConnect LAN C API."""
-
+    """
+    Bridge class for interacting with the Zehnder ComfoConnect LAN C API.
+    This class manages the connection to a ComfoConnect bridge device, handles message sending and receiving,
+    and provides methods for session management, device registration, and data requests.
+    """
     PORT = 56747
 
     def __init__(self, host: str, uuid: str, loop=None):
@@ -333,6 +356,16 @@ class Bridge:
         )
 
     def cmd_rmi_request(self, message, node_id: int = 1) -> Awaitable[Message]:
+        """
+        Sends a Remote Method Invocation (RMI) request to a specified node.
+
+        Args:
+            message: The message payload to send with the RMI request.
+            node_id (int, optional): The target node ID. Defaults to 1.
+
+        Returns:
+            Awaitable[Message]: An awaitable that resolves to the response Message.
+        """
         """Sends a RMI request."""
         _LOGGER.debug("CnRmiRequest")
         # pylint: disable=no-member
@@ -454,7 +487,7 @@ class Message:
 
     @classmethod
     def decode(cls, packet) -> Message:
-        """Decode a packet from a byte buffer"""
+        """Decode a packet from a byte buffer."""
         src_buf = packet[0:16]
         dst_buf = packet[16:32]
         cmd_len = struct.unpack(">H", packet[32:34])[0]
