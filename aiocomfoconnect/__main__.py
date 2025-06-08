@@ -164,6 +164,111 @@ async def run_set_boost(args: argparse.Namespace) -> None:
     await with_connected_bridge(args.host, args.uuid, do_set_boost, args.mode, args.timeout)
 
 
+async def run_show_sensors(args: argparse.Namespace) -> None:
+    """Show all sensors."""
+    # Discover bridge so we know the UUID
+    bridges = await discover_bridges(args.host)
+    if not bridges:
+        raise BridgeNotFoundException("No bridge found")
+
+    def alarm_callback(node_id, errors):
+        """Print alarm updates."""
+        print(f"Alarm received for Node {node_id}:")
+        for error_id, error in errors.items():
+            print(f"* {error_id}: {error}")
+
+    def sensor_callback(sensor, value):
+        """Print sensor updates."""
+        print(f"{sensor.name:>40}: {value} {sensor.unit or ''}")
+
+    # Connect to the bridge
+    comfoconnect = ComfoConnect(bridges[0].host, bridges[0].uuid, sensor_callback=sensor_callback, alarm_callback=alarm_callback)
+    try:
+        await comfoconnect.connect(args.uuid)
+    except ComfoConnectNotAllowed:
+        print("Could not connect to bridge. Please register first.")
+        sys.exit(1)
+
+    # Register all sensors
+    for sensor in SENSORS.values():
+        await comfoconnect.register_sensor(sensor)
+
+    try:
+        while True:
+            # Wait for updates and send a keepalive every 30 seconds
+            await asyncio.sleep(30)
+
+            try:
+                print("Sending keepalive...")
+                # Use cmd_time_request as a keepalive since cmd_keepalive doesn't send back a reply we can wait for
+                await comfoconnect.cmd_time_request()
+            except AioComfoConnectNotConnected:
+                print("Got AioComfoConnectNotConnected")
+            except AioComfoConnectTimeout:
+                print("Got AioComfoConnectTimeout")
+
+    except KeyboardInterrupt:
+        pass
+
+    print("Disconnecting...")
+    await comfoconnect.disconnect()
+
+
+async def run_show_sensor(args: argparse.Namespace) -> None:
+    """Show a sensor."""
+    result = Future()
+
+    # Discover bridge so we know the UUID
+    bridges = await discover_bridges(args.host)
+    if not bridges:
+        raise BridgeNotFoundException("No bridge found")
+
+    def sensor_callback(sensor_, value):
+        """Print sensor update."""
+        print(value)
+        if not result.done():
+            result.set_result(value)
+
+    # Connect to the bridge
+    comfoconnect = ComfoConnect(bridges[0].host, bridges[0].uuid, sensor_callback=sensor_callback)
+    try:
+        await comfoconnect.connect(args.uuid)
+    except ComfoConnectNotAllowed:
+        print("Could not connect to bridge. Please register first.")
+        sys.exit(1)
+
+    if not sensor in SENSORS:
+        print(f"Unknown sensor with ID {args.sensor}")
+        sys.exit(1)
+
+    # Register sensors
+    await comfoconnect.register_sensor(SENSORS[args.sensor])
+
+    # Wait for value
+    await result
+
+    # Follow for updates if requested
+    if args.follow:
+        try:
+            while True:
+                # Wait for updates and send a keepalive every 30 seconds
+                await asyncio.sleep(30)
+
+                try:
+                    print("Sending keepalive...")
+                    # Use cmd_time_request as a keepalive since cmd_keepalive doesn't send back a reply we can wait for
+                    await comfoconnect.cmd_time_request()
+                except AioComfoConnectNotConnected:
+                    print("Got AioComfoConnectNotConnected")
+                except AioComfoConnectTimeout:
+                    print("Got AioComfoConnectTimeout")
+
+        except KeyboardInterrupt:
+            pass
+
+    # Disconnect
+    await comfoconnect.disconnect()
+
 async def run_get_property(args: argparse.Namespace) -> None:
     """Get a property."""
     async def do_get_property(comfoconnect, node_id, unit, subunit, property_id, property_type):
@@ -237,13 +342,13 @@ if __name__ == "__main__":
     p_sensors = subparsers.add_parser("show-sensors", help="show the sensor values")
     p_sensors.add_argument("--host", help="Host address of the bridge")
     p_sensors.add_argument("--uuid", help="UUID of this app", default=DEFAULT_UUID)
-    # TODO: Refactor run_show_sensors to accept args and register here
+    p_sensors.set_defaults(func=run_show_sensors)
     p_sensor = subparsers.add_parser("show-sensor", help="show a single sensor value")
     p_sensor.add_argument("sensor", help="The ID of the sensor", type=int)
     p_sensor.add_argument("--host", help="Host address of the bridge")
     p_sensor.add_argument("--uuid", help="UUID of this app", default=DEFAULT_UUID)
     p_sensor.add_argument("--follow", "-f", help="Follow", default=False, action="store_true")
-    # TODO: Refactor run_show_sensor to accept args and register here
+    p_sensor.set_defaults(func=run_show_sensor)
     p_get_property = subparsers.add_parser("get-property", help="show a property value")
     p_get_property.add_argument("unit", help="The Unit of the property", type=int)
     p_get_property.add_argument("subunit", help="The Subunit of the property", type=int)
