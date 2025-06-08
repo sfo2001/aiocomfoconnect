@@ -262,6 +262,14 @@ async def run_set_flow_for_speed(args: argparse.Namespace) -> None:
     await with_connected_bridge(args.host, args.uuid, do_set_flow, args.speed, args.flow)
 
 
+async def run_list_sensors(args: argparse.Namespace) -> None:
+    """List all known sensors."""
+    print(f"{'ID':>6} | {'Name':<40} | {'Unit':<8}")
+    print("-" * 60)
+    for sensor_id, sensor in sorted(SENSORS.items()):
+        print(f"{sensor_id:6} | {sensor.name:<40} | {sensor.unit or '-':<8}")
+
+
 async def main(args: argparse.Namespace) -> None:
     """Main entry point for the CLI."""
     await args.func(args)
@@ -337,6 +345,8 @@ if __name__ == "__main__":
     p_set_flow_speed.add_argument("--host", help="Host address of the bridge")
     p_set_flow_speed.add_argument("--uuid", help="UUID of this app", default=DEFAULT_UUID)
     p_set_flow_speed.set_defaults(func=run_set_flow_for_speed)
+    p_list_sensors = subparsers.add_parser("list-sensors", help="list all known sensors")
+    p_list_sensors.set_defaults(func=run_list_sensors)
     arguments = parser.parse_args()
     if arguments.debug:
         logging.basicConfig(level=logging.DEBUG)
