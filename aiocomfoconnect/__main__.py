@@ -107,6 +107,8 @@ async def with_connected_bridge(
     uuid: str,
     action: callable,
     *action_args,
+    sensor_callback=None,
+    alarm_callback=None,
     **action_kwargs,
 ) -> None:
     """Discover, connect, execute an action, and disconnect from a bridge.
@@ -116,6 +118,8 @@ async def with_connected_bridge(
         uuid (str): UUID of this app.
         action (callable): Coroutine function to execute with the connected ComfoConnect instance.
         *action_args: Positional arguments for the action.
+        sensor_callback: Optional callback for sensor updates.
+        alarm_callback: Optional callback for alarm updates.
         **action_kwargs: Keyword arguments for the action.
 
     Raises:
@@ -124,7 +128,11 @@ async def with_connected_bridge(
     bridges = await discover_bridges(host)
     if not bridges:
         raise BridgeNotFoundException("No bridge found")
-    comfoconnect = ComfoConnect(bridges[0].host, bridges[0].uuid)
+    comfoconnect = ComfoConnect(
+        bridges[0].host, bridges[0].uuid,
+        sensor_callback=sensor_callback,
+        alarm_callback=alarm_callback
+    )
     try:
         await comfoconnect.connect(uuid)
     except ComfoConnectNotAllowed:
@@ -166,108 +174,68 @@ async def run_set_boost(args: argparse.Namespace) -> None:
 
 async def run_show_sensors(args: argparse.Namespace) -> None:
     """Show all sensors."""
-    # Discover bridge so we know the UUID
-    bridges = await discover_bridges(args.host)
-    if not bridges:
-        raise BridgeNotFoundException("No bridge found")
-
     def alarm_callback(node_id, errors):
-        """Print alarm updates."""
         print(f"Alarm received for Node {node_id}:")
         for error_id, error in errors.items():
             print(f"* {error_id}: {error}")
 
     def sensor_callback(sensor, value):
-        """Print sensor updates."""
         print(f"{sensor.name:>40}: {value} {sensor.unit or ''}")
 
-    # Connect to the bridge
-    comfoconnect = ComfoConnect(bridges[0].host, bridges[0].uuid, sensor_callback=sensor_callback, alarm_callback=alarm_callback)
-    try:
-        await comfoconnect.connect(args.uuid)
-    except ComfoConnectNotAllowed:
-        print("Could not connect to bridge. Please register first.")
-        sys.exit(1)
-
-    # Register all sensors
-    for sensor in SENSORS.values():
-        await comfoconnect.register_sensor(sensor)
-
-    try:
-        while True:
-            # Wait for updates and send a keepalive every 30 seconds
-            await asyncio.sleep(30)
-
-            try:
-                print("Sending keepalive...")
-                # Use cmd_time_request as a keepalive since cmd_keepalive doesn't send back a reply we can wait for
-                await comfoconnect.cmd_time_request()
-            except AioComfoConnectNotConnected:
-                print("Got AioComfoConnectNotConnected")
-            except AioComfoConnectTimeout:
-                print("Got AioComfoConnectTimeout")
-
-    except KeyboardInterrupt:
-        pass
-
-    print("Disconnecting...")
-    await comfoconnect.disconnect()
-
-
-async def run_show_sensor(args: argparse.Namespace) -> None:
-    """Show a sensor."""
-    result = Future()
-
-    # Discover bridge so we know the UUID
-    bridges = await discover_bridges(args.host)
-    if not bridges:
-        raise BridgeNotFoundException("No bridge found")
-
-    def sensor_callback(sensor_, value):
-        """Print sensor update."""
-        print(value)
-        if not result.done():
-            result.set_result(value)
-
-    # Connect to the bridge
-    comfoconnect = ComfoConnect(bridges[0].host, bridges[0].uuid, sensor_callback=sensor_callback)
-    try:
-        await comfoconnect.connect(args.uuid)
-    except ComfoConnectNotAllowed:
-        print("Could not connect to bridge. Please register first.")
-        sys.exit(1)
-
-    if not sensor in SENSORS:
-        print(f"Unknown sensor with ID {args.sensor}")
-        sys.exit(1)
-
-    # Register sensors
-    await comfoconnect.register_sensor(SENSORS[args.sensor])
-
-    # Wait for value
-    await result
-
-    # Follow for updates if requested
-    if args.follow:
+    async def do_show_sensors(comfoconnect):
+        for sensor in SENSORS.values():
+            await comfoconnect.register_sensor(sensor)
         try:
             while True:
-                # Wait for updates and send a keepalive every 30 seconds
                 await asyncio.sleep(30)
-
                 try:
                     print("Sending keepalive...")
-                    # Use cmd_time_request as a keepalive since cmd_keepalive doesn't send back a reply we can wait for
                     await comfoconnect.cmd_time_request()
                 except AioComfoConnectNotConnected:
                     print("Got AioComfoConnectNotConnected")
                 except AioComfoConnectTimeout:
                     print("Got AioComfoConnectTimeout")
-
         except KeyboardInterrupt:
             pass
+        print("Disconnecting...")
+    await with_connected_bridge(
+        args.host, args.uuid, do_show_sensors,
+        sensor_callback=sensor_callback,
+        alarm_callback=alarm_callback
+    )
 
-    # Disconnect
-    await comfoconnect.disconnect()
+
+async def run_show_sensor(args: argparse.Namespace) -> None:
+    """Show a sensor."""
+    result = Future()
+    def sensor_callback(sensor_, value):
+        print(value)
+        if not result.done():
+            result.set_result(value)
+    async def do_show_sensor(comfoconnect):
+        if not args.sensor in SENSORS:
+            print(f"Unknown sensor with ID {args.sensor}")
+            sys.exit(1)
+        await comfoconnect.register_sensor(SENSORS[args.sensor])
+        await result
+        if args.follow:
+            try:
+                while True:
+                    await asyncio.sleep(30)
+                    try:
+                        print("Sending keepalive...")
+                        await comfoconnect.cmd_time_request()
+                    except AioComfoConnectNotConnected:
+                        print("Got AioComfoConnectNotConnected")
+                    except AioComfoConnectTimeout:
+                        print("Got AioComfoConnectTimeout")
+            except KeyboardInterrupt:
+                pass
+    await with_connected_bridge(
+        args.host, args.uuid, do_show_sensor,
+        sensor_callback=sensor_callback
+    )
+
 
 async def run_get_property(args: argparse.Namespace) -> None:
     """Get a property."""
@@ -292,6 +260,14 @@ async def run_set_flow_for_speed(args: argparse.Namespace) -> None:
     async def do_set_flow(comfoconnect, speed, desired_flow):
         await comfoconnect.set_flow_for_speed(speed, desired_flow)
     await with_connected_bridge(args.host, args.uuid, do_set_flow, args.speed, args.flow)
+
+
+async def run_list_sensors(args: argparse.Namespace) -> None:
+    """List all known sensors."""
+    print(f"{'ID':>6} | {'Name':<40} | {'Unit':<8}")
+    print("-" * 60)
+    for sensor_id, sensor in sorted(SENSORS.items()):
+        print(f"{sensor_id:6} | {sensor.name:<40} | {sensor.unit or '-':<8}")
 
 
 async def main(args: argparse.Namespace) -> None:
@@ -369,6 +345,8 @@ if __name__ == "__main__":
     p_set_flow_speed.add_argument("--host", help="Host address of the bridge")
     p_set_flow_speed.add_argument("--uuid", help="UUID of this app", default=DEFAULT_UUID)
     p_set_flow_speed.set_defaults(func=run_set_flow_for_speed)
+    p_list_sensors = subparsers.add_parser("list-sensors", help="list all known sensors")
+    p_list_sensors.set_defaults(func=run_list_sensors)
     arguments = parser.parse_args()
     if arguments.debug:
         logging.basicConfig(level=logging.DEBUG)
