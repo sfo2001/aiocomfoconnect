@@ -317,6 +317,51 @@ async def run_set_bypass(args: argparse.Namespace) -> None:
     await with_connected_bridge(args.host, args.uuid, do_set_bypass, args.mode)
 
 
+async def run_get_sensor_ventmode_temperature_passive(args: argparse.Namespace) -> None:
+    """Get the current sensor-based ventilation mode (temperature passive)."""
+    async def do_get(comfoconnect):
+        mode = await comfoconnect.get_sensor_ventmode_temperature_passive()
+        print(str(mode))
+    await with_connected_bridge(args.host, args.uuid, do_get)
+
+
+async def run_set_sensor_ventmode_temperature_passive(args: argparse.Namespace) -> None:
+    """Set the sensor-based ventilation mode (temperature passive)."""
+    async def do_set(comfoconnect, mode):
+        await comfoconnect.set_sensor_ventmode_temperature_passive(mode)
+    await with_connected_bridge(args.host, args.uuid, do_set, args.mode)
+
+
+async def run_get_sensor_ventmode_humidity_comfort(args: argparse.Namespace) -> None:
+    """Get the current sensor-based ventilation mode (humidity comfort)."""
+    async def do_get(comfoconnect):
+        mode = await comfoconnect.get_sensor_ventmode_humidity_comfort()
+        print(str(mode))
+    await with_connected_bridge(args.host, args.uuid, do_get)
+
+
+async def run_set_sensor_ventmode_humidity_comfort(args: argparse.Namespace) -> None:
+    """Set the sensor-based ventilation mode (humidity comfort)."""
+    async def do_set(comfoconnect, mode):
+        await comfoconnect.set_sensor_ventmode_humidity_comfort(mode)
+    await with_connected_bridge(args.host, args.uuid, do_set, args.mode)
+
+
+async def run_get_sensor_ventmode_humidity_protection(args: argparse.Namespace) -> None:
+    """Get the current sensor-based ventilation mode (humidity protection)."""
+    async def do_get(comfoconnect):
+        mode = await comfoconnect.get_sensor_ventmode_humidity_protection()
+        print(str(mode))
+    await with_connected_bridge(args.host, args.uuid, do_get)
+
+
+async def run_set_sensor_ventmode_humidity_protection(args: argparse.Namespace) -> None:
+    """Set the sensor-based ventilation mode (humidity protection)."""
+    async def do_set(comfoconnect, mode):
+        await comfoconnect.set_sensor_ventmode_humidity_protection(mode)
+    await with_connected_bridge(args.host, args.uuid, do_set, args.mode)
+
+
 async def main(args: argparse.Namespace) -> None:
     """Main entry point for the CLI."""
     await args.func(args)
@@ -420,6 +465,38 @@ if __name__ == "__main__":
     p_set_bypass.add_argument("--host", help="Host address of the bridge")
     p_set_bypass.add_argument("--uuid", help="UUID of this app", default=DEFAULT_UUID)
     p_set_bypass.set_defaults(func=run_set_bypass)
+    p_get_sensor_temp_passive = subparsers.add_parser("get-sensor-ventmode-temperature-passive", help="Get the current sensor-based ventilation mode (temperature passive)")
+    p_get_sensor_temp_passive.add_argument("--host", help="Host address of the bridge")
+    p_get_sensor_temp_passive.add_argument("--uuid", help="UUID of this app", default=DEFAULT_UUID)
+    p_get_sensor_temp_passive.set_defaults(func=run_get_sensor_ventmode_temperature_passive)
+
+    p_set_sensor_temp_passive = subparsers.add_parser("set-sensor-ventmode-temperature-passive", help="Set the sensor-based ventilation mode (temperature passive)")
+    p_set_sensor_temp_passive.add_argument("mode", help="Mode", choices=["auto", "on", "off"])
+    p_set_sensor_temp_passive.add_argument("--host", help="Host address of the bridge")
+    p_set_sensor_temp_passive.add_argument("--uuid", help="UUID of this app", default=DEFAULT_UUID)
+    p_set_sensor_temp_passive.set_defaults(func=run_set_sensor_ventmode_temperature_passive)
+
+    p_get_sensor_hum_comfort = subparsers.add_parser("get-sensor-ventmode-humidity-comfort", help="Get the current sensor-based ventilation mode (humidity comfort)")
+    p_get_sensor_hum_comfort.add_argument("--host", help="Host address of the bridge")
+    p_get_sensor_hum_comfort.add_argument("--uuid", help="UUID of this app", default=DEFAULT_UUID)
+    p_get_sensor_hum_comfort.set_defaults(func=run_get_sensor_ventmode_humidity_comfort)
+
+    p_set_sensor_hum_comfort = subparsers.add_parser("set-sensor-ventmode-humidity-comfort", help="Set the sensor-based ventilation mode (humidity comfort)")
+    p_set_sensor_hum_comfort.add_argument("mode", help="Mode", choices=["auto", "on", "off"])
+    p_set_sensor_hum_comfort.add_argument("--host", help="Host address of the bridge")
+    p_set_sensor_hum_comfort.add_argument("--uuid", help="UUID of this app", default=DEFAULT_UUID)
+    p_set_sensor_hum_comfort.set_defaults(func=run_set_sensor_ventmode_humidity_comfort)
+
+    p_get_sensor_hum_protection = subparsers.add_parser("get-sensor-ventmode-humidity-protection", help="Get the current sensor-based ventilation mode (humidity protection)")
+    p_get_sensor_hum_protection.add_argument("--host", help="Host address of the bridge")
+    p_get_sensor_hum_protection.add_argument("--uuid", help="UUID of this app", default=DEFAULT_UUID)
+    p_get_sensor_hum_protection.set_defaults(func=run_get_sensor_ventmode_humidity_protection)
+
+    p_set_sensor_hum_protection = subparsers.add_parser("set-sensor-ventmode-humidity-protection", help="Set the sensor-based ventilation mode (humidity protection)")
+    p_set_sensor_hum_protection.add_argument("mode", help="Mode", choices=["auto", "on", "off"])
+    p_set_sensor_hum_protection.add_argument("--host", help="Host address of the bridge")
+    p_set_sensor_hum_protection.add_argument("--uuid", help="UUID of this app", default=DEFAULT_UUID)
+    p_set_sensor_hum_protection.set_defaults(func=run_set_sensor_ventmode_humidity_protection)
   
     arguments = parser.parse_args()
     if arguments.debug:

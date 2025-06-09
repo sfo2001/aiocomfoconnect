@@ -627,90 +627,98 @@ class ComfoConnect(Bridge):
                 raise ValueError(f"Invalid temperature profile: {profile}")
         await self.set_temperature_profile_enum(enum_profile, timeout)
 
-    async def get_sensor_ventmode_temperature_passive(self) -> str:
-        """Get sensor based ventilation mode - temperature passive (auto / on / off)."""
+    async def get_sensor_ventmode_temperature_passive_enum(self) -> VentilationSetting:
+        """Get sensor based ventilation mode - temperature passive as enum (AUTO / ON / OFF)."""
         result = await self.cmd_rmi_request(bytes([self._CMD_GET_PROPERTY, UNIT_TEMPHUMCONTROL, SUBUNIT_01, 0x10, 0x04]))
         mode = int.from_bytes(result.message, "little")
-        match mode:
-            case 1:
-                return VentilationSetting.AUTO
-            case 2:
-                return VentilationSetting.ON
-            case 0:
-                return VentilationSetting.OFF
-            case _:
-                raise ValueError(f"Invalid mode: {mode}")
+        try:
+            return VentilationSetting(mode)
+        except ValueError:
+            raise ValueError(f"Invalid mode: {mode}")
 
-    async def set_sensor_ventmode_temperature_passive(self, mode: Literal["auto", "on", "off"]) -> None:
-        """Configure sensor based ventilation mode - temperature passive (auto / on / off)."""
-        match mode:
-            case VentilationSetting.AUTO:
-                await self.cmd_rmi_request(bytes([self._CMD_SET_PROPERTY, UNIT_TEMPHUMCONTROL, SUBUNIT_01, 0x04, 0x01]))
-            case VentilationSetting.ON:
-                await self.cmd_rmi_request(bytes([self._CMD_SET_PROPERTY, UNIT_TEMPHUMCONTROL, SUBUNIT_01, 0x04, 0x02]))
-            case VentilationSetting.OFF:
-                await self.cmd_rmi_request(bytes([self._CMD_SET_PROPERTY, UNIT_TEMPHUMCONTROL, SUBUNIT_01, 0x04, 0x00]))
-            case _:
-                raise ValueError(f"Invalid mode: {mode}")
+    async def get_sensor_ventmode_temperature_passive(self) -> str:
+        """Backwards-compatible: Get sensor based ventilation mode - temperature passive as string ('auto', 'on', 'off')."""
+        mode_enum = await self.get_sensor_ventmode_temperature_passive_enum()
+        return str(mode_enum)
 
-    async def get_sensor_ventmode_humidity_comfort(self) -> str:
-        """Get sensor based ventilation mode - humidity comfort (auto / on / off)."""
+    async def set_sensor_ventmode_temperature_passive_enum(self, mode: VentilationSetting) -> None:
+        """Set sensor based ventilation mode - temperature passive using enum (AUTO / ON / OFF)."""
+        if not isinstance(mode, VentilationSetting):
+            raise ValueError(f"Invalid mode: {mode}")
+        await self.cmd_rmi_request(bytes([self._CMD_SET_PROPERTY, UNIT_TEMPHUMCONTROL, SUBUNIT_01, 0x04, mode.value]))
+
+    async def set_sensor_ventmode_temperature_passive(self, mode: str) -> None:
+        """Backwards-compatible: Set sensor based ventilation mode - temperature passive using string ('auto', 'on', 'off')."""
+        try:
+            mode_enum = VentilationSetting[mode.strip().upper()]
+        except KeyError:
+            try:
+                mode_enum = VentilationSetting(int(mode))
+            except Exception:
+                raise ValueError(f"Invalid mode: {mode}")
+        await self.set_sensor_ventmode_temperature_passive_enum(mode_enum)
+
+    async def get_sensor_ventmode_humidity_comfort_enum(self) -> VentilationSetting:
+        """Get sensor based ventilation mode - humidity comfort as enum (AUTO / ON / OFF)."""
         result = await self.cmd_rmi_request(bytes([self._CMD_GET_PROPERTY, UNIT_TEMPHUMCONTROL, SUBUNIT_01, 0x10, 0x06]))
         mode = int.from_bytes(result.message, "little")
-        match mode:
-            case 1:
-                return VentilationSetting.AUTO
-            case 2:
-                return VentilationSetting.ON
-            case 0:
-                return VentilationSetting.OFF
-            case _:
-                raise ValueError(f"Invalid mode: {mode}")
+        try:
+            return VentilationSetting(mode)
+        except ValueError:
+            raise ValueError(f"Invalid mode: {mode}")
 
-    async def set_sensor_ventmode_humidity_comfort(self, mode: Literal["auto", "on", "off"]) -> None:
-        """Configure sensor based ventilation mode - humidity comfort (auto / on / off)."""
-        match mode:
-            case VentilationSetting.AUTO:
-                await self.cmd_rmi_request(bytes([self._CMD_SET_PROPERTY, UNIT_TEMPHUMCONTROL, SUBUNIT_01, 0x06, 0x01]))
-            case VentilationSetting.ON:
-                await self.cmd_rmi_request(bytes([self._CMD_SET_PROPERTY, UNIT_TEMPHUMCONTROL, SUBUNIT_01, 0x06, 0x02]))
-            case VentilationSetting.OFF:
-                await self.cmd_rmi_request(bytes([self._CMD_SET_PROPERTY, UNIT_TEMPHUMCONTROL, SUBUNIT_01, 0x06, 0x00]))
-            case _:
-                raise ValueError(f"Invalid mode: {mode}")
+    async def get_sensor_ventmode_humidity_comfort(self) -> str:
+        """Backwards-compatible: Get sensor based ventilation mode - humidity comfort as string ('auto', 'on', 'off')."""
+        mode_enum = await self.get_sensor_ventmode_humidity_comfort_enum()
+        return str(mode_enum)
 
-    async def get_sensor_ventmode_humidity_protection(self) -> str:
-        """Get sensor based ventilation mode - humidity protection (auto / on / off)."""
+    async def set_sensor_ventmode_humidity_comfort_enum(self, mode: VentilationSetting) -> None:
+        """Set sensor based ventilation mode - humidity comfort using enum (AUTO / ON / OFF)."""
+        if not isinstance(mode, VentilationSetting):
+            raise ValueError(f"Invalid mode: {mode}")
+        await self.cmd_rmi_request(bytes([self._CMD_SET_PROPERTY, UNIT_TEMPHUMCONTROL, SUBUNIT_01, 0x06, mode.value]))
+
+    async def set_sensor_ventmode_humidity_comfort(self, mode: str) -> None:
+        """Backwards-compatible: Set sensor based ventilation mode - humidity comfort using string ('auto', 'on', 'off')."""
+        try:
+            mode_enum = VentilationSetting[mode.strip().upper()]
+        except KeyError:
+            try:
+                mode_enum = VentilationSetting(int(mode))
+            except Exception:
+                raise ValueError(f"Invalid mode: {mode}")
+        await self.set_sensor_ventmode_humidity_comfort_enum(mode_enum)
+
+    async def get_sensor_ventmode_humidity_protection_enum(self) -> VentilationSetting:
+        """Get sensor based ventilation mode - humidity protection as enum (AUTO / ON / OFF)."""
         result = await self.cmd_rmi_request(bytes([self._CMD_GET_PROPERTY, UNIT_TEMPHUMCONTROL, SUBUNIT_01, 0x10, 0x07]))
         mode = int.from_bytes(result.message, "little")
-        match mode:
-            case 1:
-                return VentilationSetting.AUTO
-            case 2:
-                return VentilationSetting.ON
-            case 0:
-                return VentilationSetting.OFF
-            case _:
+        try:
+            return VentilationSetting(mode)
+        except ValueError:
+            raise ValueError(f"Invalid mode: {mode}")
+
+    async def get_sensor_ventmode_humidity_protection(self) -> str:
+        """Backwards-compatible: Get sensor based ventilation mode - humidity protection as string ('auto', 'on', 'off')."""
+        mode_enum = await self.get_sensor_ventmode_humidity_protection_enum()
+        return str(mode_enum)
+
+    async def set_sensor_ventmode_humidity_protection_enum(self, mode: VentilationSetting) -> None:
+        """Set sensor based ventilation mode - humidity protection using enum (AUTO / ON / OFF)."""
+        if not isinstance(mode, VentilationSetting):
+            raise ValueError(f"Invalid mode: {mode}")
+        await self.cmd_rmi_request(bytes([self._CMD_SET_PROPERTY, UNIT_TEMPHUMCONTROL, SUBUNIT_01, 0x07, mode.value]))
+
+    async def set_sensor_ventmode_humidity_protection(self, mode: str) -> None:
+        """Backwards-compatible: Set sensor based ventilation mode - humidity protection using string ('auto', 'on', 'off')."""
+        try:
+            mode_enum = VentilationSetting[mode.strip().upper()]
+        except KeyError:
+            try:
+                mode_enum = VentilationSetting(int(mode))
+            except Exception:
                 raise ValueError(f"Invalid mode: {mode}")
-
-    async def set_sensor_ventmode_humidity_protection(self, mode: Literal["auto", "on", "off"]) -> None:
-        """Configure sensor-based ventilation mode - humidity protection.
-
-        Args:
-            mode (Literal["auto", "on", "off"]): Desired mode.
-
-        Raises:
-            ValueError: If the mode is invalid.
-        """
-        match mode:
-            case VentilationSetting.AUTO:
-                await self.cmd_rmi_request(bytes([self._CMD_SET_PROPERTY, UNIT_TEMPHUMCONTROL, SUBUNIT_01, 0x07, 0x01]))
-            case VentilationSetting.ON:
-                await self.cmd_rmi_request(bytes([self._CMD_SET_PROPERTY, UNIT_TEMPHUMCONTROL, SUBUNIT_01, 0x07, 0x02]))
-            case VentilationSetting.OFF:
-                await self.cmd_rmi_request(bytes([self._CMD_SET_PROPERTY, UNIT_TEMPHUMCONTROL, SUBUNIT_01, 0x07, 0x00]))
-            case _:
-                raise ValueError(f"Invalid mode: {mode}")
+        await self.set_sensor_ventmode_humidity_protection_enum(mode_enum)
 
     async def clear_errors(self):
         """Clear the errors."""
