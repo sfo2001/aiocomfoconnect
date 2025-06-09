@@ -55,16 +55,6 @@ from aiocomfoconnect.util import bytearray_to_bits, bytestring, encode_pdo_value
 
 _LOGGER = logging.getLogger(__name__)
 
-# RMI Command Types
-CMD_GET_PROPERTY = 0x01
-CMD_GET_MULTIPLE_PROPERTIES = 0x02
-CMD_SET_PROPERTY = 0x03
-CMD_CLEAR_ERRORS = 0x82
-CMD_GET_MODE = 0x83
-CMD_SET_MODE = 0x84
-CMD_ENABLE_MODE = 0x85
-
-
 class ComfoConnect(Bridge):
     """
     Abstraction layer over the ComfoConnect LAN C API.
@@ -72,6 +62,15 @@ class ComfoConnect(Bridge):
     This class manages the connection to a ComfoConnect bridge device, handles sensor registration,
     property access, and provides high-level methods for controlling and monitoring the ventilation system.
     """
+
+    # RMI Command Types (private to class)
+    _CMD_GET_PROPERTY = 0x01
+    _CMD_GET_MULTIPLE_PROPERTIES = 0x02
+    _CMD_SET_PROPERTY = 0x03
+    _CMD_CLEAR_ERRORS = 0x82
+    _CMD_GET_MODE = 0x83
+    _CMD_SET_MODE = 0x84
+    _CMD_ENABLE_MODE = 0x85
 
     def __init__(self, host: str, uuid: str, loop=None, sensor_callback=None, alarm_callback=None, sensor_delay=2):
         """
@@ -214,7 +213,7 @@ class ComfoConnect(Bridge):
         Returns:
             Any: The property value, type depends on property_type.
         """
-        result = await self.cmd_rmi_request(bytes([CMD_GET_PROPERTY, unit, subunit, 0x10, property_id]), node_id=node_id)
+        result = await self.cmd_rmi_request(bytes([self._CMD_GET_PROPERTY, unit, subunit, 0x10, property_id]), node_id=node_id)
         match property_type:
             case PdoType.TYPE_CN_STRING:
                 return result.message.decode("utf-8").rstrip("\x00")
@@ -239,7 +238,7 @@ class ComfoConnect(Bridge):
         Returns:
             Any: The result message.
         """
-        result = await self.cmd_rmi_request(bytestring([CMD_GET_MULTIPLE_PROPERTIES, unit, subunit, 0x01, 0x10 | len(property_ids), bytes(property_ids)]), node_id=node_id)
+        result = await self.cmd_rmi_request(bytestring([self._CMD_GET_MULTIPLE_PROPERTIES, unit, subunit, 0x01, 0x10 | len(property_ids), bytes(property_ids)]), node_id=node_id)
         return result.message
 
     async def set_property(self, unit: int, subunit: int, property_id: int, value: int, node_id=1) -> Any:
@@ -255,7 +254,7 @@ class ComfoConnect(Bridge):
         Returns:
             Any: The result message.
         """
-        result = await self.cmd_rmi_request(bytes([CMD_SET_PROPERTY, unit, subunit, property_id, value]), node_id=node_id)
+        result = await self.cmd_rmi_request(bytes([self._CMD_SET_PROPERTY, unit, subunit, property_id, value]), node_id=node_id)
         return result.message
 
     async def set_property_typed(self, unit: int, subunit: int, property_id: int, value: int, pdo_type: PdoType, node_id=1) -> Any:
@@ -273,13 +272,13 @@ class ComfoConnect(Bridge):
             Any: The result message.
         """
         value_bytes = encode_pdo_value(value, pdo_type)
-        message_bytes = bytes([CMD_SET_PROPERTY, unit, subunit, property_id]) + value_bytes
+        message_bytes = bytes([self._CMD_SET_PROPERTY, unit, subunit, property_id]) + value_bytes
         result = await self.cmd_rmi_request(message_bytes, node_id=node_id)
         return result.message
 
     async def clear_errors(self):
         """Clear the errors."""
-        await self.cmd_rmi_request(bytes([CMD_CLEAR_ERRORS, UNIT_ERROR, SUBUNIT_01]))
+        await self.cmd_rmi_request(bytes([self._CMD_CLEAR_ERRORS, UNIT_ERROR, SUBUNIT_01]))
 
     def _sensor_callback(self, sensor_id: int, sensor_value: Any) -> None:
         """Handle sensor updates and invoke the user callback.
@@ -325,7 +324,7 @@ class ComfoConnect(Bridge):
         Returns:
             str: The current mode ("manual" or "auto").
         """
-        result = await self.cmd_rmi_request(bytes([0x83, UNIT_SCHEDULE, SUBUNIT_08, 0x01]))
+        result = await self.cmd_rmi_request(bytes([self._CMD_GET_MODE, UNIT_SCHEDULE, SUBUNIT_08, 0x01]))
         # 0000000000ffffffff0000000001 = auto
         # 0100000000ffffffffffffffff01 = manual
         mode = result.message[0]
@@ -340,9 +339,9 @@ class ComfoConnect(Bridge):
             ValueError: If the mode is invalid.
         """
         if mode == VentilationMode.AUTO:
-            await self.cmd_rmi_request(bytes([CMD_ENABLE_MODE, UNIT_SCHEDULE, SUBUNIT_08, 0x01]))
+            await self.cmd_rmi_request(bytes([self._CMD_ENABLE_MODE, UNIT_SCHEDULE, SUBUNIT_08, 0x01]))
         elif mode == VentilationMode.MANUAL:
-            await self.cmd_rmi_request(bytes([CMD_SET_MODE, UNIT_SCHEDULE, SUBUNIT_08, 0x01, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01]))
+            await self.cmd_rmi_request(bytes([self._CMD_SET_MODE, UNIT_SCHEDULE, SUBUNIT_08, 0x01, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01]))
         else:
             raise ValueError(f"Invalid mode: {mode}")
 
@@ -354,7 +353,7 @@ class ComfoConnect(Bridge):
         Raises:
             ValueError: If the speed is invalid.
         """
-        result = await self.cmd_rmi_request(bytes([0x83, UNIT_SCHEDULE, SUBUNIT_01, 0x01]))
+        result = await self.cmd_rmi_request(bytes([self._CMD_GET_MODE, UNIT_SCHEDULE, SUBUNIT_01, 0x01]))
         # 0100000000ffffffffffffffff00 = away
         # 0100000000ffffffffffffffff01 = low
         # 0100000000ffffffffffffffff02 = medium
@@ -387,7 +386,7 @@ class ComfoConnect(Bridge):
             VentilationSpeed.HIGH: 0x03,
         }
         if speed in speed_map:
-            await self.cmd_rmi_request(bytes([CMD_SET_MODE, UNIT_SCHEDULE, SUBUNIT_01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, speed_map[speed]]))
+            await self.cmd_rmi_request(bytes([self._CMD_SET_MODE, UNIT_SCHEDULE, SUBUNIT_01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, speed_map[speed]]))
         else:
             raise ValueError(f"Invalid speed: {speed}")
 
@@ -434,7 +433,7 @@ class ComfoConnect(Bridge):
 
     async def get_bypass(self):
         """Get the bypass mode (auto / on / off)."""
-        result = await self.cmd_rmi_request(bytes([0x83, UNIT_SCHEDULE, SUBUNIT_02, 0x01]))
+        result = await self.cmd_rmi_request(bytes([self._CMD_GET_MODE, UNIT_SCHEDULE, SUBUNIT_02, 0x01]))
         # 0000000000080700000000000000 = auto
         # 0100000000100e00000b0e000001 = open
         # 0100000000100e00000d0e000002 = close
@@ -452,18 +451,18 @@ class ComfoConnect(Bridge):
     async def set_bypass(self, mode: Literal["auto", "on", "off"], timeout: int = -1) -> None:
         """Set the bypass mode (auto / on / off)."""
         if mode == VentilationSetting.AUTO:
-            await self.cmd_rmi_request(bytes([CMD_ENABLE_MODE, UNIT_SCHEDULE, SUBUNIT_02, 0x01]))
+            await self.cmd_rmi_request(bytes([self._CMD_ENABLE_MODE, UNIT_SCHEDULE, SUBUNIT_02, 0x01]))
         elif mode == VentilationSetting.ON:
-            await self.cmd_rmi_request(bytestring([CMD_SET_MODE, UNIT_SCHEDULE, SUBUNIT_02, 0x01, 0x00, 0x00, 0x00, 0x00, timeout.to_bytes(4, "little", signed=True), 0x01]))
+            await self.cmd_rmi_request(bytestring([self._CMD_SET_MODE, UNIT_SCHEDULE, SUBUNIT_02, 0x01, 0x00, 0x00, 0x00, 0x00, timeout.to_bytes(4, "little", signed=True), 0x01]))
         elif mode == VentilationSetting.OFF:
-            await self.cmd_rmi_request(bytestring([CMD_SET_MODE, UNIT_SCHEDULE, SUBUNIT_02, 0x01, 0x00, 0x00, 0x00, 0x00, timeout.to_bytes(4, "little", signed=True), 0x02]))
+            await self.cmd_rmi_request(bytestring([self._CMD_SET_MODE, UNIT_SCHEDULE, SUBUNIT_02, 0x01, 0x00, 0x00, 0x00, 0x00, timeout.to_bytes(4, "little", signed=True), 0x02]))
         else:
             raise ValueError(f"Invalid mode: {mode}")
 
     async def get_balance_mode(self) -> str:
         """Get the ventilation balance mode (balance / supply only / exhaust only)."""
-        result_06 = await self.cmd_rmi_request(bytes([0x83, UNIT_SCHEDULE, SUBUNIT_06, 0x01]))
-        result_07 = await self.cmd_rmi_request(bytes([0x83, UNIT_SCHEDULE, SUBUNIT_07, 0x01]))
+        result_06 = await self.cmd_rmi_request(bytes([self._CMD_GET_MODE, UNIT_SCHEDULE, SUBUNIT_06, 0x01]))
+        result_07 = await self.cmd_rmi_request(bytes([self._CMD_GET_MODE, UNIT_SCHEDULE, SUBUNIT_07, 0x01]))
         # result_06:
         # 0000000000080700000000000001 = balance
         # 0100000000100e00000e0e000001 = supply only
@@ -486,20 +485,20 @@ class ComfoConnect(Bridge):
     async def set_balance_mode(self, mode: Literal["balance", "supply_only", "exhaust_only"], timeout: int = -1) -> None:
         """Set the ventilation balance mode (balance / supply only / exhaust only)."""
         if mode == VentilationBalance.BALANCE:
-            await self.cmd_rmi_request(bytes([CMD_ENABLE_MODE, UNIT_SCHEDULE, SUBUNIT_06, 0x01]))
-            await self.cmd_rmi_request(bytes([CMD_ENABLE_MODE, UNIT_SCHEDULE, SUBUNIT_07, 0x01]))
+            await self.cmd_rmi_request(bytes([self._CMD_ENABLE_MODE, UNIT_SCHEDULE, SUBUNIT_06, 0x01]))
+            await self.cmd_rmi_request(bytes([self._CMD_ENABLE_MODE, UNIT_SCHEDULE, SUBUNIT_07, 0x01]))
         elif mode == VentilationBalance.SUPPLY_ONLY:
-            await self.cmd_rmi_request(bytestring([CMD_SET_MODE, UNIT_SCHEDULE, SUBUNIT_06, 0x01, 0x00, 0x00, 0x00, 0x00, timeout.to_bytes(4, "little", signed=True), 0x01]))
-            await self.cmd_rmi_request(bytes([CMD_ENABLE_MODE, UNIT_SCHEDULE, SUBUNIT_07, 0x01]))
+            await self.cmd_rmi_request(bytestring([self._CMD_SET_MODE, UNIT_SCHEDULE, SUBUNIT_06, 0x01, 0x00, 0x00, 0x00, 0x00, timeout.to_bytes(4, "little", signed=True), 0x01]))
+            await self.cmd_rmi_request(bytes([self._CMD_ENABLE_MODE, UNIT_SCHEDULE, SUBUNIT_07, 0x01]))
         elif mode == VentilationBalance.EXHAUST_ONLY:
-            await self.cmd_rmi_request(bytes([CMD_ENABLE_MODE, UNIT_SCHEDULE, SUBUNIT_06, 0x01]))
-            await self.cmd_rmi_request(bytestring([CMD_SET_MODE, UNIT_SCHEDULE, SUBUNIT_07, 0x01, 0x00, 0x00, 0x00, 0x00, timeout.to_bytes(4, "little", signed=True), 0x01]))
+            await self.cmd_rmi_request(bytes([self._CMD_ENABLE_MODE, UNIT_SCHEDULE, SUBUNIT_06, 0x01]))
+            await self.cmd_rmi_request(bytestring([self._CMD_SET_MODE, UNIT_SCHEDULE, SUBUNIT_07, 0x01, 0x00, 0x00, 0x00, 0x00, timeout.to_bytes(4, "little", signed=True), 0x01]))
         else:
             raise ValueError(f"Invalid mode: {mode}")
 
     async def get_boost(self) -> bool:
         """Get boost mode."""
-        result = await self.cmd_rmi_request(bytes([CMD_GET_MODE, UNIT_SCHEDULE, SUBUNIT_01, 0x06]))
+        result = await self.cmd_rmi_request(bytes([self._CMD_GET_MODE, UNIT_SCHEDULE, SUBUNIT_01, 0x06]))
         # 0000000000580200000000000003 = not active
         # 0100000000580200005602000003 = active
         mode = result.message[0]
@@ -508,13 +507,13 @@ class ComfoConnect(Bridge):
     async def set_boost(self, mode: bool, timeout: int = 3600) -> None:
         """Activate boost mode."""
         if mode:
-            await self.cmd_rmi_request(bytestring([CMD_SET_MODE, UNIT_SCHEDULE, SUBUNIT_01, 0x06, 0x00, 0x00, 0x00, 0x00, timeout.to_bytes(4, "little", signed=True), 0x03]))
+            await self.cmd_rmi_request(bytestring([self._CMD_SET_MODE, UNIT_SCHEDULE, SUBUNIT_01, 0x06, 0x00, 0x00, 0x00, 0x00, timeout.to_bytes(4, "little", signed=True), 0x03]))
         else:
-            await self.cmd_rmi_request(bytes([CMD_ENABLE_MODE, UNIT_SCHEDULE, SUBUNIT_01, 0x06]))
+            await self.cmd_rmi_request(bytes([self._CMD_ENABLE_MODE, UNIT_SCHEDULE, SUBUNIT_01, 0x06]))
 
     async def get_away(self) -> bool:
         """Get away mode."""
-        result = await self.cmd_rmi_request(bytes([CMD_GET_MODE, UNIT_SCHEDULE, SUBUNIT_01, 0x0B]))
+        result = await self.cmd_rmi_request(bytes([self._CMD_GET_MODE, UNIT_SCHEDULE, SUBUNIT_01, 0x0B]))
         # 0000000000b00400000000000000 = not active
         # 0100000000550200005302000000 = active
         mode = result.message[0]
@@ -523,13 +522,13 @@ class ComfoConnect(Bridge):
     async def set_away(self, mode: bool, timeout: int = 3600) -> None:
         """Activate away mode."""
         if mode:
-            await self.cmd_rmi_request(bytestring([CMD_SET_MODE, UNIT_SCHEDULE, SUBUNIT_01, 0x0B, 0x00, 0x00, 0x00, 0x00, timeout.to_bytes(4, "little", signed=True), 0x00]))
+            await self.cmd_rmi_request(bytestring([self._CMD_SET_MODE, UNIT_SCHEDULE, SUBUNIT_01, 0x0B, 0x00, 0x00, 0x00, 0x00, timeout.to_bytes(4, "little", signed=True), 0x00]))
         else:
-            await self.cmd_rmi_request(bytes([CMD_ENABLE_MODE, UNIT_SCHEDULE, SUBUNIT_01, 0x0B]))
+            await self.cmd_rmi_request(bytes([self._CMD_ENABLE_MODE, UNIT_SCHEDULE, SUBUNIT_01, 0x0B]))
 
     async def get_comfocool_mode(self) -> bool:
         """Get the current comfocool mode."""
-        result = await self.cmd_rmi_request(bytes([CMD_GET_MODE, UNIT_SCHEDULE, SUBUNIT_05, 0x01]))
+        result = await self.cmd_rmi_request(bytes([self._CMD_GET_MODE, UNIT_SCHEDULE, SUBUNIT_05, 0x01]))
         mode = result.message[0]
         return mode == 0
 
@@ -551,9 +550,9 @@ class ComfoConnect(Bridge):
             This method sends the appropriate code to the device to change the ComfoCool mode.
         """
         if mode == ComfoCoolMode.AUTO:
-            await self.cmd_rmi_request(bytes([CMD_ENABLE_MODE, UNIT_SCHEDULE, SUBUNIT_05, 0x01]))
+            await self.cmd_rmi_request(bytes([self._CMD_ENABLE_MODE, UNIT_SCHEDULE, SUBUNIT_05, 0x01]))
         elif mode == ComfoCoolMode.OFF:
-            await self.cmd_rmi_request(bytestring([CMD_SET_MODE, UNIT_SCHEDULE, SUBUNIT_05, 0x01, 0x00, 0x00, 0x00, 0x00, timeout.to_bytes(4, "little", signed=True), 0x00]))
+            await self.cmd_rmi_request(bytestring([self._CMD_SET_MODE, UNIT_SCHEDULE, SUBUNIT_05, 0x01, 0x00, 0x00, 0x00, 0x00, timeout.to_bytes(4, "little", signed=True), 0x00]))
         else:
             raise ValueError(f"Invalid mode: {mode}")
 
@@ -568,7 +567,7 @@ class ComfoConnect(Bridge):
         Raises:
             ValueError: If the received mode value is not recognized.
         """
-        result = await self.cmd_rmi_request(bytes([CMD_GET_MODE, UNIT_SCHEDULE, SUBUNIT_03, 0x01]))
+        result = await self.cmd_rmi_request(bytes([self._CMD_GET_MODE, UNIT_SCHEDULE, SUBUNIT_03, 0x01]))
         # 0100000000ffffffffffffffff02 = warm
         # 0100000000ffffffffffffffff00 = normal
         # 0100000000ffffffffffffffff01 = cool
@@ -584,17 +583,17 @@ class ComfoConnect(Bridge):
     async def set_temperature_profile(self, profile: Literal["warm", "normal", "cool"], timeout: int = -1) -> None:
         """Set the temperature profile (warm / normal / cool)."""
         if profile == VentilationTemperatureProfile.WARM:
-            await self.cmd_rmi_request(bytestring([CMD_SET_MODE, UNIT_SCHEDULE, SUBUNIT_03, 0x01, 0x00, 0x00, 0x00, 0x00, timeout.to_bytes(4, "little", signed=True), 0x02]))
+            await self.cmd_rmi_request(bytestring([self._CMD_SET_MODE, UNIT_SCHEDULE, SUBUNIT_03, 0x01, 0x00, 0x00, 0x00, 0x00, timeout.to_bytes(4, "little", signed=True), 0x02]))
         elif profile == VentilationTemperatureProfile.NORMAL:
-            await self.cmd_rmi_request(bytestring([CMD_SET_MODE, UNIT_SCHEDULE, SUBUNIT_03, 0x01, 0x00, 0x00, 0x00, 0x00, timeout.to_bytes(4, "little", signed=True), 0x00]))
+            await self.cmd_rmi_request(bytestring([self._CMD_SET_MODE, UNIT_SCHEDULE, SUBUNIT_03, 0x01, 0x00, 0x00, 0x00, 0x00, timeout.to_bytes(4, "little", signed=True), 0x00]))
         elif profile == VentilationTemperatureProfile.COOL:
-            await self.cmd_rmi_request(bytestring([CMD_SET_MODE, UNIT_SCHEDULE, SUBUNIT_03, 0x01, 0x00, 0x00, 0x00, 0x00, timeout.to_bytes(4, "little", signed=True), 0x01]))
+            await self.cmd_rmi_request(bytestring([self._CMD_SET_MODE, UNIT_SCHEDULE, SUBUNIT_03, 0x01, 0x00, 0x00, 0x00, 0x00, timeout.to_bytes(4, "little", signed=True), 0x01]))
         else:
             raise ValueError(f"Invalid profile: {profile}")
 
     async def get_sensor_ventmode_temperature_passive(self) -> str:
         """Get sensor based ventilation mode - temperature passive (auto / on / off)."""
-        result = await self.cmd_rmi_request(bytes([CMD_GET_PROPERTY, UNIT_TEMPHUMCONTROL, SUBUNIT_01, 0x10, 0x04]))
+        result = await self.cmd_rmi_request(bytes([self._CMD_GET_PROPERTY, UNIT_TEMPHUMCONTROL, SUBUNIT_01, 0x10, 0x04]))
         # 00 = off
         # 01 = auto
         # 02 = on
@@ -610,17 +609,17 @@ class ComfoConnect(Bridge):
     async def set_sensor_ventmode_temperature_passive(self, mode: Literal["auto", "on", "off"]) -> None:
         """Configure sensor based ventilation mode - temperature passive (auto / on / off)."""
         if mode == VentilationSetting.AUTO:
-            await self.cmd_rmi_request(bytes([CMD_SET_PROPERTY, UNIT_TEMPHUMCONTROL, SUBUNIT_01, 0x04, 0x01]))
+            await self.cmd_rmi_request(bytes([self._CMD_SET_PROPERTY, UNIT_TEMPHUMCONTROL, SUBUNIT_01, 0x04, 0x01]))
         elif mode == VentilationSetting.ON:
-            await self.cmd_rmi_request(bytes([CMD_SET_PROPERTY, UNIT_TEMPHUMCONTROL, SUBUNIT_01, 0x04, 0x02]))
+            await self.cmd_rmi_request(bytes([self._CMD_SET_PROPERTY, UNIT_TEMPHUMCONTROL, SUBUNIT_01, 0x04, 0x02]))
         elif mode == VentilationSetting.OFF:
-            await self.cmd_rmi_request(bytes([CMD_SET_PROPERTY, UNIT_TEMPHUMCONTROL, SUBUNIT_01, 0x04, 0x00]))
+            await self.cmd_rmi_request(bytes([self._CMD_SET_PROPERTY, UNIT_TEMPHUMCONTROL, SUBUNIT_01, 0x04, 0x00]))
         else:
             raise ValueError(f"Invalid mode: {mode}")
 
     async def get_sensor_ventmode_humidity_comfort(self) -> str:
         """Get sensor based ventilation mode - humidity comfort (auto / on / off)."""
-        result = await self.cmd_rmi_request(bytes([CMD_GET_PROPERTY, UNIT_TEMPHUMCONTROL, SUBUNIT_01, 0x10, 0x06]))
+        result = await self.cmd_rmi_request(bytes([self._CMD_GET_PROPERTY, UNIT_TEMPHUMCONTROL, SUBUNIT_01, 0x10, 0x06]))
         # 00 = off
         # 01 = auto
         # 02 = on
@@ -636,17 +635,17 @@ class ComfoConnect(Bridge):
     async def set_sensor_ventmode_humidity_comfort(self, mode: Literal["auto", "on", "off"]) -> None:
         """Configure sensor based ventilation mode - humidity comfort (auto / on / off)."""
         if mode == VentilationSetting.AUTO:
-            await self.cmd_rmi_request(bytes([CMD_SET_PROPERTY, UNIT_TEMPHUMCONTROL, SUBUNIT_01, 0x06, 0x01]))
+            await self.cmd_rmi_request(bytes([self._CMD_SET_PROPERTY, UNIT_TEMPHUMCONTROL, SUBUNIT_01, 0x06, 0x01]))
         elif mode == VentilationSetting.ON:
-            await self.cmd_rmi_request(bytes([CMD_SET_PROPERTY, UNIT_TEMPHUMCONTROL, SUBUNIT_01, 0x06, 0x02]))
+            await self.cmd_rmi_request(bytes([self._CMD_SET_PROPERTY, UNIT_TEMPHUMCONTROL, SUBUNIT_01, 0x06, 0x02]))
         elif mode == VentilationSetting.OFF:
-            await self.cmd_rmi_request(bytes([CMD_SET_PROPERTY, UNIT_TEMPHUMCONTROL, SUBUNIT_01, 0x06, 0x00]))
+            await self.cmd_rmi_request(bytes([self._CMD_SET_PROPERTY, UNIT_TEMPHUMCONTROL, SUBUNIT_01, 0x06, 0x00]))
         else:
             raise ValueError(f"Invalid mode: {mode}")
 
     async def get_sensor_ventmode_humidity_protection(self) -> str:
         """Get sensor based ventilation mode - humidity protection (auto / on / off)."""
-        result = await self.cmd_rmi_request(bytes([CMD_GET_PROPERTY, UNIT_TEMPHUMCONTROL, SUBUNIT_01, 0x10, 0x07]))
+        result = await self.cmd_rmi_request(bytes([self._CMD_GET_PROPERTY, UNIT_TEMPHUMCONTROL, SUBUNIT_01, 0x10, 0x07]))
         # 00 = off
         # 01 = auto
         # 02 = on
@@ -662,14 +661,14 @@ class ComfoConnect(Bridge):
     async def set_sensor_ventmode_humidity_protection(self, mode: Literal["auto", "on", "off"]) -> None:
         """Configure sensor based ventilation mode - humidity protection (auto / on / off)."""
         if mode == VentilationSetting.AUTO:
-            await self.cmd_rmi_request(bytes([CMD_SET_PROPERTY, UNIT_TEMPHUMCONTROL, SUBUNIT_01, 0x07, 0x01]))
+            await self.cmd_rmi_request(bytes([self._CMD_SET_PROPERTY, UNIT_TEMPHUMCONTROL, SUBUNIT_01, 0x07, 0x01]))
         elif mode == VentilationSetting.ON:
-            await self.cmd_rmi_request(bytes([CMD_SET_PROPERTY, UNIT_TEMPHUMCONTROL, SUBUNIT_01, 0x07, 0x02]))
+            await self.cmd_rmi_request(bytes([self._CMD_SET_PROPERTY, UNIT_TEMPHUMCONTROL, SUBUNIT_01, 0x07, 0x02]))
         elif mode == VentilationSetting.OFF:
-            await self.cmd_rmi_request(bytes([CMD_SET_PROPERTY, UNIT_TEMPHUMCONTROL, SUBUNIT_01, 0x07, 0x00]))
+            await self.cmd_rmi_request(bytes([self._CMD_SET_PROPERTY, UNIT_TEMPHUMCONTROL, SUBUNIT_01, 0x07, 0x00]))
         else:
             raise ValueError(f"Invalid mode: {mode}")
 
     async def clear_errors(self):
         """Clear the errors."""
-        await self.cmd_rmi_request(bytes([CMD_CLEAR_ERRORS, UNIT_ERROR, SUBUNIT_01]))
+        await self.cmd_rmi_request(bytes([self._CMD_CLEAR_ERRORS, UNIT_ERROR, SUBUNIT_01]))
