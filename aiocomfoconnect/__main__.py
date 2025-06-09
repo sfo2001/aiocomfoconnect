@@ -362,6 +362,21 @@ async def run_set_sensor_ventmode_humidity_protection(args: argparse.Namespace) 
     await with_connected_bridge(args.host, args.uuid, do_set, args.mode)
 
 
+async def run_get_balance_mode(args: argparse.Namespace) -> None:
+    """Get the current ventilation balance mode."""
+    async def do_get_balance_mode(comfoconnect):
+        mode = await comfoconnect.get_balance_mode()
+        print(str(mode))
+    await with_connected_bridge(args.host, args.uuid, do_get_balance_mode)
+
+
+async def run_set_balance_mode(args: argparse.Namespace) -> None:
+    """Set the ventilation balance mode."""
+    async def do_set_balance_mode(comfoconnect, mode):
+        await comfoconnect.set_balance_mode(mode)
+    await with_connected_bridge(args.host, args.uuid, do_set_balance_mode, args.mode)
+
+
 async def main(args: argparse.Namespace) -> None:
     """Main entry point for the CLI."""
     await args.func(args)
@@ -461,7 +476,7 @@ if __name__ == "__main__":
     p_get_bypass.add_argument("--uuid", help="UUID of this app", default=DEFAULT_UUID)
     p_get_bypass.set_defaults(func=run_get_bypass)
     p_set_bypass = subparsers.add_parser("set-bypass", help="Set the bypass mode")
-    p_set_bypass.add_argument("mode", help="Bypass mode", choices=["auto", "on", "off"])
+    p_set_bypass.add_argument("mode", help="Bypass mode", choices=["auto", "open", "closed"])
     p_set_bypass.add_argument("--host", help="Host address of the bridge")
     p_set_bypass.add_argument("--uuid", help="UUID of this app", default=DEFAULT_UUID)
     p_set_bypass.set_defaults(func=run_set_bypass)
@@ -498,12 +513,22 @@ if __name__ == "__main__":
     p_set_sensor_hum_protection.add_argument("--uuid", help="UUID of this app", default=DEFAULT_UUID)
     p_set_sensor_hum_protection.set_defaults(func=run_set_sensor_ventmode_humidity_protection)
   
-    arguments = parser.parse_args()
-    if arguments.debug:
-        logging.basicConfig(level=logging.DEBUG)
-    else:
-        logging.basicConfig(level=logging.WARNING)
+    p_get_balance_mode = subparsers.add_parser("get-balance-mode", help="Get the current ventilation balance mode")
+    p_get_balance_mode.add_argument("--host", help="Host address of the bridge")
+    p_get_balance_mode.add_argument("--uuid", help="UUID of this app", default=DEFAULT_UUID)
+    p_get_balance_mode.set_defaults(func=run_get_balance_mode)
+
+    p_set_balance_mode = subparsers.add_parser("set-balance-mode", help="Set the ventilation balance mode")
+    p_set_balance_mode.add_argument("mode", help="Balance mode", choices=["balance", "supply_only", "exhaust_only"])
+    p_set_balance_mode.add_argument("--host", help="Host address of the bridge")
+    p_set_balance_mode.add_argument("--uuid", help="UUID of this app", default=DEFAULT_UUID)
+    p_set_balance_mode.set_defaults(func=run_set_balance_mode)
     try:
+        arguments = parser.parse_args()
+        if arguments.debug:
+            logging.basicConfig(level=logging.DEBUG)
+        else:
+            logging.basicConfig(level=logging.WARNING)
         asyncio.run(main(arguments), debug=True)
     except KeyboardInterrupt:
         pass

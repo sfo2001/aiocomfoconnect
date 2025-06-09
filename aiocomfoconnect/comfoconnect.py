@@ -428,11 +428,8 @@ class ComfoConnect(Bridge):
         await self.set_property_typed(UNIT_VENTILATIONCONFIG, SUBUNIT_01, property_id, desired_flow, PdoType.TYPE_CN_INT16)
 
     async def get_bypass_enum(self) -> BypassMode:
-        """Get the bypass mode as an enum (AUTO / ON / OFF)."""
+        """Get the bypass mode as an enum (AUTO / OPEN / CLOSED)."""
         result = await self.cmd_rmi_request(bytes([self._CMD_GET_MODE, UNIT_SCHEDULE, SUBUNIT_02, 0x01]))
-        # 0000000000080700000000000000 = auto
-        # 0100000000100e00000b0e000001 = open
-        # 0100000000100e00000d0e000002 = close
         mode = result.message[-1]
         try:
             return BypassMode(mode)
@@ -440,21 +437,21 @@ class ComfoConnect(Bridge):
             raise ValueError(f"Invalid bypass mode: {mode}")
 
     async def get_bypass(self) -> str:
-        """Backwards-compatible: Get the bypass mode as a string ('auto', 'on', 'off')."""
+        """Backwards-compatible: Get the bypass mode as a string ('auto', 'open', 'closed')."""
         mode_enum = await self.get_bypass_enum()
         return str(mode_enum)
 
     async def set_bypass_enum(self, mode: BypassMode, timeout: int = -1) -> None:
-        """Set the bypass mode using the enum (AUTO / ON / OFF)."""
+        """Set the bypass mode using the enum (AUTO / OPEN / CLOSED)."""
         if not isinstance(mode, BypassMode):
             raise ValueError(f"Invalid bypass mode: {mode}")
         if mode == BypassMode.AUTO:
             await self.cmd_rmi_request(bytes([self._CMD_ENABLE_MODE, UNIT_SCHEDULE, SUBUNIT_02, 0x01]))
-        elif mode == BypassMode.ON:
+        elif mode == BypassMode.OPEN:
             await self.cmd_rmi_request(bytestring([
                 self._CMD_SET_MODE, UNIT_SCHEDULE, SUBUNIT_02, 0x01, 0x00, 0x00, 0x00, 0x00, timeout.to_bytes(4, "little", signed=True), 0x01
             ]))
-        elif mode == BypassMode.OFF:
+        elif mode == BypassMode.CLOSED:
             await self.cmd_rmi_request(bytestring([
                 self._CMD_SET_MODE, UNIT_SCHEDULE, SUBUNIT_02, 0x01, 0x00, 0x00, 0x00, 0x00, timeout.to_bytes(4, "little", signed=True), 0x02
             ]))
@@ -462,9 +459,17 @@ class ComfoConnect(Bridge):
             raise ValueError(f"Invalid bypass mode: {mode}")
 
     async def set_bypass(self, mode: str, timeout: int = -1) -> None:
-        """Backwards-compatible: Set the bypass mode using a string ('auto', 'on', 'off')."""
+        """Backwards-compatible: Set the bypass mode using a string ('auto', 'open', 'closed').
+        Accepts deprecated 'on' (as 'open') and 'off' (as 'closed')."""
+        mode_str = mode.strip().lower()
+        if mode_str == "on":
+            _LOGGER.warning("Bypass mode 'on' is deprecated, use 'open' instead.")
+            mode_str = "open"
+        elif mode_str == "off":
+            _LOGGER.warning("Bypass mode 'off' is deprecated, use 'closed' instead.")
+            mode_str = "closed"
         try:
-            mode_enum = BypassMode[mode.strip().upper()]
+            mode_enum = BypassMode[mode_str.upper()]
         except KeyError:
             try:
                 mode_enum = BypassMode(int(mode))
