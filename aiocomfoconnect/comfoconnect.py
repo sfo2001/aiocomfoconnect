@@ -521,35 +521,45 @@ class ComfoConnect(Bridge):
         else:
             await self.cmd_rmi_request(bytes([self._CMD_ENABLE_MODE, UNIT_SCHEDULE, SUBUNIT_01, 0x0B]))
 
-    async def get_comfocool_mode(self) -> bool:
-        """Get the current comfocool mode."""
+    async def get_comfocool_mode_enum(self) -> ComfoCoolMode:
+        """Get the current ComfoCool mode as an enum.
+
+        Returns:
+            ComfoCoolMode: The current mode (AUTO, OFF).
+        Raises:
+            ValueError: If the mode is invalid.
+        """
         result = await self.cmd_rmi_request(bytes([self._CMD_GET_MODE, UNIT_SCHEDULE, SUBUNIT_05, 0x01]))
         mode = result.message[0]
-        return mode == 0
+        try:
+            return ComfoCoolMode(mode)
+        except ValueError:
+            raise ValueError(f"Invalid ComfoCool mode: {mode}")
 
-    async def set_comfocool_mode(self, mode: Literal["auto", "off"], timeout: int = -1) -> None:
-        """
-        Set the ComfoCool mode to either 'auto' or 'off'.
+    async def get_comfocool_mode(self) -> str:
+        """Backwards-compatible: Get the current ComfoCool mode as a string ('auto', 'off')."""
+        mode_enum = await self.get_comfocool_mode_enum()
+        return str(mode_enum)
 
-        Args:
-            mode (Literal["auto", "off"]): The desired ComfoCool mode. 
-                - "auto": Enables automatic ComfoCool mode.
-                - "off": Disables ComfoCool mode.
-            timeout (int, optional): Timeout value in seconds for the 'off' mode. 
-                Defaults to -1. Only used when mode is "off".
+    async def set_comfocool_mode_enum(self, mode: ComfoCoolMode, timeout: int = -1) -> None:
+        """Set the ComfoCool mode using the enum (AUTO, OFF)."""
+        if not isinstance(mode, ComfoCoolMode):
+            raise ValueError(f"Invalid ComfoCool mode: {mode}")
+        await self.cmd_rmi_request(bytes([
+            self._CMD_SET_MODE, UNIT_SCHEDULE, SUBUNIT_05, 0x01,
+            0x00, 0x00, 0x00, 0x00, timeout.to_bytes(4, "little", signed=True), mode.value
+        ]))
 
-        Raises:
-            ValueError: If an invalid mode is provided.
-
-        Note:
-            This method sends the appropriate code to the device to change the ComfoCool mode.
-        """
-        if mode == ComfoCoolMode.AUTO:
-            await self.cmd_rmi_request(bytes([self._CMD_ENABLE_MODE, UNIT_SCHEDULE, SUBUNIT_05, 0x01]))
-        elif mode == ComfoCoolMode.OFF:
-            await self.cmd_rmi_request(bytestring([self._CMD_SET_MODE, UNIT_SCHEDULE, SUBUNIT_05, 0x01, 0x00, 0x00, 0x00, 0x00, timeout.to_bytes(4, "little", signed=True), 0x00]))
-        else:
-            raise ValueError(f"Invalid mode: {mode}")
+    async def set_comfocool_mode(self, mode: str, timeout: int = -1) -> None:
+        """Backwards-compatible: Set the ComfoCool mode using a string ('auto', 'off')."""
+        try:
+            mode_enum = ComfoCoolMode[mode.strip().upper()]
+        except KeyError:
+            try:
+                mode_enum = ComfoCoolMode(int(mode))
+            except Exception:
+                raise ValueError(f"Invalid ComfoCool mode: {mode}")
+        await self.set_comfocool_mode_enum(mode_enum, timeout)
 
     async def get_temperature_profile_enum(self) -> VentilationTemperatureProfile:
         """
