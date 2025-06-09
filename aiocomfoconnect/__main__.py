@@ -302,6 +302,21 @@ async def run_get_comfocool(args: argparse.Namespace) -> None:
     await with_connected_bridge(args.host, args.uuid, do_get_comfocool)
 
 
+async def run_get_bypass(args: argparse.Namespace) -> None:
+    """Get the current bypass mode."""
+    async def do_get_bypass(comfoconnect):
+        mode = await comfoconnect.get_bypass()
+        print(str(mode))
+    await with_connected_bridge(args.host, args.uuid, do_get_bypass)
+
+
+async def run_set_bypass(args: argparse.Namespace) -> None:
+    """Set the bypass mode."""
+    async def do_set_bypass(comfoconnect, mode):
+        await comfoconnect.set_bypass(mode)
+    await with_connected_bridge(args.host, args.uuid, do_set_bypass, args.mode)
+
+
 async def main(args: argparse.Namespace) -> None:
     """Main entry point for the CLI."""
     await args.func(args)
@@ -396,6 +411,15 @@ if __name__ == "__main__":
     p_set_temp_profile.add_argument("--host", help="Host address of the bridge")
     p_set_temp_profile.add_argument("--uuid", help="UUID of this app", default=DEFAULT_UUID)
     p_set_temp_profile.set_defaults(func=run_set_temperature_profile)
+    p_get_bypass = subparsers.add_parser("get-bypass", help="Get the current bypass mode")
+    p_get_bypass.add_argument("--host", help="Host address of the bridge")
+    p_get_bypass.add_argument("--uuid", help="UUID of this app", default=DEFAULT_UUID)
+    p_get_bypass.set_defaults(func=run_get_bypass)
+    p_set_bypass = subparsers.add_parser("set-bypass", help="Set the bypass mode")
+    p_set_bypass.add_argument("mode", help="Bypass mode", choices=["auto", "on", "off"])
+    p_set_bypass.add_argument("--host", help="Host address of the bridge")
+    p_set_bypass.add_argument("--uuid", help="UUID of this app", default=DEFAULT_UUID)
+    p_set_bypass.set_defaults(func=run_set_bypass)
   
     arguments = parser.parse_args()
     if arguments.debug:

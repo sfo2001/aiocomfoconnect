@@ -221,6 +221,15 @@ class ComfoCoolMode(IntEnum):
         return self.name.lower()
 
 
+class BypassMode(IntEnum):
+    AUTO = 0
+    ON = 1
+    OFF = 2
+
+    def __str__(self) -> str:
+        return self.name.lower()
+
+
 # Magic numbers and bit positions for airflow constraints
 CAN_ID_OFFSET: int = 0x40
 PDO_SHIFT: int = 14
