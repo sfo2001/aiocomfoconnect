@@ -38,6 +38,7 @@ from aiocomfoconnect.exceptions import (
 )
 from aiocomfoconnect.properties import Property
 from aiocomfoconnect.sensors import SENSORS
+from aiocomfoconnect.const import VentilationTemperatureProfile
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -270,6 +271,29 @@ async def run_list_sensors(args: argparse.Namespace) -> None:
         print(f"{sensor_id:6} | {sensor.name:<40} | {sensor.unit or '-':<8}")
 
 
+async def run_get_temperature_profile(args: argparse.Namespace) -> None:
+    """Get the current temperature profile."""
+    async def do_get_profile(comfoconnect):
+        profile = await comfoconnect.get_temperature_profile()
+        print(str(profile))
+    await with_connected_bridge(args.host, args.uuid, do_get_profile)
+
+
+async def run_set_temperature_profile(args: argparse.Namespace) -> None:
+    """Set the temperature profile (warm / normal / cool)."""
+    async def do_set_profile(comfoconnect, profile_str):
+        await comfoconnect.set_temperature_profile(profile_str)
+    await with_connected_bridge(args.host, args.uuid, do_set_profile, args.profile)
+
+
+async def run_get_speed(args: argparse.Namespace) -> None:
+    """Get the current ventilation speed."""
+    async def do_get_speed(comfoconnect):
+        speed = await comfoconnect.get_speed()
+        print(str(speed))
+    await with_connected_bridge(args.host, args.uuid, do_get_speed)
+
+
 async def main(args: argparse.Namespace) -> None:
     """Main entry point for the CLI."""
     await args.func(args)
@@ -294,6 +318,10 @@ if __name__ == "__main__":
     p_deregister.add_argument("--host", help="Host address of the bridge")
     p_deregister.add_argument("--uuid", help="UUID of this app", default=DEFAULT_UUID)
     p_deregister.set_defaults(func=run_deregister)
+    p_get_speed = subparsers.add_parser("get-speed", help="Get the current fan speed")
+    p_get_speed.add_argument("--host", help="Host address of the bridge")
+    p_get_speed.add_argument("--uuid", help="UUID of this app", default=DEFAULT_UUID)
+    p_get_speed.set_defaults(func=run_get_speed)
     p_set_speed = subparsers.add_parser("set-speed", help="set the fan speed")
     p_set_speed.add_argument("speed", help="Fan speed", choices=["low", "medium", "high", "away"])
     p_set_speed.add_argument("--host", help="Host address of the bridge")
@@ -347,6 +375,17 @@ if __name__ == "__main__":
     p_set_flow_speed.set_defaults(func=run_set_flow_for_speed)
     p_list_sensors = subparsers.add_parser("list-sensors", help="list all known sensors")
     p_list_sensors.set_defaults(func=run_list_sensors)
+    p_get_temp_profile = subparsers.add_parser("get-temperature-profile", help="Get the current temperature profile")
+    p_get_temp_profile.add_argument("--host", help="Host address of the bridge")
+    p_get_temp_profile.add_argument("--uuid", help="UUID of this app", default=DEFAULT_UUID)
+    p_get_temp_profile.set_defaults(func=run_get_temperature_profile)
+
+    p_set_temp_profile = subparsers.add_parser("set-temperature-profile", help="Set the temperature profile")
+    p_set_temp_profile.add_argument("profile", help="Temperature profile", choices=["warm", "normal", "cool"])
+    p_set_temp_profile.add_argument("--host", help="Host address of the bridge")
+    p_set_temp_profile.add_argument("--uuid", help="UUID of this app", default=DEFAULT_UUID)
+    p_set_temp_profile.set_defaults(func=run_set_temperature_profile)
+ 
     arguments = parser.parse_args()
     if arguments.debug:
         logging.basicConfig(level=logging.DEBUG)
