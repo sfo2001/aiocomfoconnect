@@ -178,12 +178,13 @@ class VentilationMode:
     AUTO = "auto"
 
 
-class VentilationSetting:
-    """Enum for ventilation settings."""
+class VentilationSetting(IntEnum):
+    OFF = 0x00
+    AUTO = 0x01
+    ON = 0x02
 
-    AUTO = "auto"
-    ON = "on"
-    OFF = "off"
+    def __str__(self) -> str:
+        return self.name.lower()
 
 
 class VentilationBalance:
