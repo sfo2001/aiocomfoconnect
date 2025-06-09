@@ -294,6 +294,14 @@ async def run_get_speed(args: argparse.Namespace) -> None:
     await with_connected_bridge(args.host, args.uuid, do_get_speed)
 
 
+async def run_get_comfocool(args: argparse.Namespace) -> None:
+    """Get the current ComfoCool mode."""
+    async def do_get_comfocool(comfoconnect):
+        mode = await comfoconnect.get_comfocool_mode()
+        print(str(mode))
+    await with_connected_bridge(args.host, args.uuid, do_get_comfocool)
+
+
 async def main(args: argparse.Namespace) -> None:
     """Main entry point for the CLI."""
     await args.func(args)
@@ -332,6 +340,10 @@ if __name__ == "__main__":
     p_set_mode.add_argument("--host", help="Host address of the bridge")
     p_set_mode.add_argument("--uuid", help="UUID of this app", default=DEFAULT_UUID)
     p_set_mode.set_defaults(func=run_set_mode)
+    p_get_comfocool = subparsers.add_parser("get-comfocool", help="Get the current ComfoCool mode")
+    p_get_comfocool.add_argument("--host", help="Host address of the bridge")
+    p_get_comfocool.add_argument("--uuid", help="UUID of this app", default=DEFAULT_UUID)
+    p_get_comfocool.set_defaults(func=run_get_comfocool)
     p_set_comfocool = subparsers.add_parser("set-comfocool", help="set comfocool mode")
     p_set_comfocool.add_argument("mode", help="Comfocool mode", choices=["auto", "off"])
     p_set_comfocool.add_argument("--host", help="Host address of the bridge")
@@ -379,13 +391,12 @@ if __name__ == "__main__":
     p_get_temp_profile.add_argument("--host", help="Host address of the bridge")
     p_get_temp_profile.add_argument("--uuid", help="UUID of this app", default=DEFAULT_UUID)
     p_get_temp_profile.set_defaults(func=run_get_temperature_profile)
-
     p_set_temp_profile = subparsers.add_parser("set-temperature-profile", help="Set the temperature profile")
     p_set_temp_profile.add_argument("profile", help="Temperature profile", choices=["warm", "normal", "cool"])
     p_set_temp_profile.add_argument("--host", help="Host address of the bridge")
     p_set_temp_profile.add_argument("--uuid", help="UUID of this app", default=DEFAULT_UUID)
     p_set_temp_profile.set_defaults(func=run_set_temperature_profile)
- 
+  
     arguments = parser.parse_args()
     if arguments.debug:
         logging.basicConfig(level=logging.DEBUG)

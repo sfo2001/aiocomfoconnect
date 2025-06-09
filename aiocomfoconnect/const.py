@@ -213,11 +213,12 @@ class VentilationSpeed(IntEnum):
         return self.name.lower()
 
 
-class ComfoCoolMode:
-    """Enum for ventilation settings."""
+class ComfoCoolMode(IntEnum):
+    OFF = 0x00  # protocol value for 'off'
+    AUTO = 0x01 # protocol value for 'auto'
 
-    AUTO = "auto"
-    OFF = "off"
+    def __str__(self) -> str:
+        return self.name.lower()
 
 
 # Magic numbers and bit positions for airflow constraints
