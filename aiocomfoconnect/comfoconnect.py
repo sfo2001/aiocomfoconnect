@@ -43,6 +43,7 @@ from aiocomfoconnect.const import (
     VentilationSetting,
     VentilationSpeed,
     VentilationTemperatureProfile,
+    BypassMode,
 )
 from aiocomfoconnect.exceptions import (
     AioComfoConnectNotConnected,
@@ -426,33 +427,50 @@ class ComfoConnect(Bridge):
 
         await self.set_property_typed(UNIT_VENTILATIONCONFIG, SUBUNIT_01, property_id, desired_flow, PdoType.TYPE_CN_INT16)
 
-    async def get_bypass(self):
-        """Get the bypass mode (auto / on / off)."""
+    async def get_bypass_enum(self) -> BypassMode:
+        """Get the bypass mode as an enum (AUTO / ON / OFF)."""
         result = await self.cmd_rmi_request(bytes([self._CMD_GET_MODE, UNIT_SCHEDULE, SUBUNIT_02, 0x01]))
         # 0000000000080700000000000000 = auto
         # 0100000000100e00000b0e000001 = open
         # 0100000000100e00000d0e000002 = close
         mode = result.message[-1]
-        match mode:
-            case 0:
-                return VentilationSetting.AUTO
-            case 1:
-                return VentilationSetting.ON
-            case 2:
-                return VentilationSetting.OFF
-            case _:
-                raise ValueError(f"Invalid mode: {mode}")
+        try:
+            return BypassMode(mode)
+        except ValueError:
+            raise ValueError(f"Invalid bypass mode: {mode}")
 
-    async def set_bypass(self, mode: Literal["auto", "on", "off"], timeout: int = -1) -> None:
-        """Set the bypass mode (auto / on / off)."""
-        if mode == VentilationSetting.AUTO:
+    async def get_bypass(self) -> str:
+        """Backwards-compatible: Get the bypass mode as a string ('auto', 'on', 'off')."""
+        mode_enum = await self.get_bypass_enum()
+        return str(mode_enum)
+
+    async def set_bypass_enum(self, mode: BypassMode, timeout: int = -1) -> None:
+        """Set the bypass mode using the enum (AUTO / ON / OFF)."""
+        if not isinstance(mode, BypassMode):
+            raise ValueError(f"Invalid bypass mode: {mode}")
+        if mode == BypassMode.AUTO:
             await self.cmd_rmi_request(bytes([self._CMD_ENABLE_MODE, UNIT_SCHEDULE, SUBUNIT_02, 0x01]))
-        elif mode == VentilationSetting.ON:
-            await self.cmd_rmi_request(bytestring([self._CMD_SET_MODE, UNIT_SCHEDULE, SUBUNIT_02, 0x01, 0x00, 0x00, 0x00, 0x00, timeout.to_bytes(4, "little", signed=True), 0x01]))
-        elif mode == VentilationSetting.OFF:
-            await self.cmd_rmi_request(bytestring([self._CMD_SET_MODE, UNIT_SCHEDULE, SUBUNIT_02, 0x01, 0x00, 0x00, 0x00, 0x00, timeout.to_bytes(4, "little", signed=True), 0x02]))
+        elif mode == BypassMode.ON:
+            await self.cmd_rmi_request(bytestring([
+                self._CMD_SET_MODE, UNIT_SCHEDULE, SUBUNIT_02, 0x01, 0x00, 0x00, 0x00, 0x00, timeout.to_bytes(4, "little", signed=True), 0x01
+            ]))
+        elif mode == BypassMode.OFF:
+            await self.cmd_rmi_request(bytestring([
+                self._CMD_SET_MODE, UNIT_SCHEDULE, SUBUNIT_02, 0x01, 0x00, 0x00, 0x00, 0x00, timeout.to_bytes(4, "little", signed=True), 0x02
+            ]))
         else:
-            raise ValueError(f"Invalid mode: {mode}")
+            raise ValueError(f"Invalid bypass mode: {mode}")
+
+    async def set_bypass(self, mode: str, timeout: int = -1) -> None:
+        """Backwards-compatible: Set the bypass mode using a string ('auto', 'on', 'off')."""
+        try:
+            mode_enum = BypassMode[mode.strip().upper()]
+        except KeyError:
+            try:
+                mode_enum = BypassMode(int(mode))
+            except Exception:
+                raise ValueError(f"Invalid bypass mode: {mode}")
+        await self.set_bypass_enum(mode_enum, timeout)
 
     async def get_balance_mode(self) -> str:
         """Get the ventilation balance mode (balance / supply only / exhaust only)."""
