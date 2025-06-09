@@ -1,5 +1,6 @@
 """ Constants """
 
+from enum import IntEnum
 
 # PDO Types
 class PdoType:
@@ -193,21 +194,23 @@ class VentilationBalance:
     EXHAUST_ONLY = "exhaust_only"
 
 
-class VentilationTemperatureProfile:
-    """Enum for ventilation temperature profiles."""
+class VentilationTemperatureProfile(IntEnum):
+    NORMAL = 0  # 0100000000ffffffffffffffff00 = normal
+    COOL = 1    # 0100000000ffffffffffffffff01 = cool
+    WARM = 2    # 0100000000ffffffffffffffff02 = warm
 
-    WARM = "warm"
-    NORMAL = "normal"
-    COOL = "cool"
+    def __str__(self) -> str:
+        return self.name.lower()
 
 
-class VentilationSpeed:
-    """Enum for ventilation speeds."""
-
-    AWAY = "away"
-    LOW = "low"
-    MEDIUM = "medium"
-    HIGH = "high"
+class VentilationSpeed(IntEnum):
+    AWAY = 0    # 0100000000ffffffffffffffff00 = away
+    LOW = 1     # 0100000000ffffffffffffffff01 = low
+    MEDIUM = 2  # 0100000000ffffffffffffffff02 = medium
+    HIGH = 3    # 0100000000ffffffffffffffff03 = high
+   
+    def __str__(self) -> str:
+        return self.name.lower()
 
 
 class ComfoCoolMode:
