@@ -223,10 +223,10 @@ class ComfoCoolMode(IntEnum):
 
 
 class BypassMode(IntEnum):
-    AUTO = 0
-    ON = 1
-    OFF = 2
-
+    AUTO = 0    # 0000000000080700000000000000 = auto
+    OPEN = 1    # 0100000000100e00000b0e000001 = open
+    CLOSED = 2  # 0100000000100e00000d0e000002 = closed
+    
     def __str__(self) -> str:
         return self.name.lower()
 
