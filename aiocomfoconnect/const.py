@@ -171,11 +171,13 @@ ERRORS_140 = {
 }
 
 
-class VentilationMode:
-    """Enum for ventilation modes."""
+class VentilationMode(Enum):
+    """Enum representing the main ventilation mode (manual/auto)."""
+    AUTO = 0
+    MANUAL = 1
 
-    MANUAL = "manual"
-    AUTO = "auto"
+    def __str__(self) -> str:
+        return self.name.lower()
 
 
 class VentilationSetting(IntEnum):
