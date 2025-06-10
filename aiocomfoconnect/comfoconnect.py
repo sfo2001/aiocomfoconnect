@@ -38,6 +38,7 @@ from aiocomfoconnect.const import (
     UNIT_VENTILATIONCONFIG,
     ComfoCoolMode,
     PdoType,
+    AirflowSpeed,
     VentilationBalance,
     VentilationMode,
     VentilationSetting,
@@ -386,46 +387,52 @@ class ComfoConnect(Bridge):
                 raise ValueError(f"Invalid speed: {speed}")
         await self.set_speed_enum(speed_enum)
 
-    async def get_flow_for_speed(self, speed: Literal["away", "low", "medium", "high"]) -> int:
+    async def get_flow_for_speed_enum(self, speed: AirflowSpeed) -> int:
         """
-        Get the targeted airflow in m³/h for the given VentilationSpeed.
+        Get the targeted airflow in m³/h for the given AirflowSpeed enum.
 
         Args:
-            speed (Literal["away", "low", "medium", "high"]): The speed to query.
+            speed (AirflowSpeed): The speed to query (AWAY, LOW, MEDIUM, HIGH).
         Returns:
             int: The targeted airflow in m³/h.
         """
-        match speed:
-            case VentilationSpeed.AWAY:
-                property_id = 3
-            case VentilationSpeed.LOW:
-                property_id = 4
-            case VentilationSpeed.MEDIUM:
-                property_id = 5
-            case VentilationSpeed.HIGH:
-                property_id = 6
+        return await self.get_single_property(UNIT_VENTILATIONCONFIG, SUBUNIT_01, speed.value, PdoType.TYPE_CN_INT16)
 
-        return await self.get_single_property(UNIT_VENTILATIONCONFIG, SUBUNIT_01, property_id, PdoType.TYPE_CN_INT16)
-
-    async def set_flow_for_speed(self, speed: Literal["away", "low", "medium", "high"], desired_flow: int):
+    async def get_flow_for_speed(self, speed: str) -> int:
         """
-        Set the targeted airflow in m³/h for the given VentilationSpeed.
+        Backwards-compatible: Get the targeted airflow in m³/h for the given speed as a string ('away', 'low', 'medium', 'high').
+        """
+        try:
+            speed_enum = AirflowSpeed[speed.strip().upper()]
+        except KeyError:
+            try:
+                speed_enum = AirflowSpeed(int(speed))
+            except Exception:
+                raise ValueError(f"Invalid airflow speed: {speed}")
+        return await self.get_flow_for_speed_enum(speed_enum)
+
+    async def set_flow_for_speed_enum(self, speed: AirflowSpeed, desired_flow: int):
+        """
+        Set the targeted airflow in m³/h for the given AirflowSpeed enum.
 
         Args:
-            speed (Literal["away", "low", "medium", "high"]): The speed to set.
+            speed (AirflowSpeed): The speed to set (AWAY, LOW, MEDIUM, HIGH).
             desired_flow (int): The desired airflow in m³/h.
         """
-        match speed:
-            case VentilationSpeed.AWAY:
-                property_id = 3
-            case VentilationSpeed.LOW:
-                property_id = 4
-            case VentilationSpeed.MEDIUM:
-                property_id = 5
-            case VentilationSpeed.HIGH:
-                property_id = 6
+        await self.set_property_typed(UNIT_VENTILATIONCONFIG, SUBUNIT_01, speed.value, desired_flow, PdoType.TYPE_CN_INT16)
 
-        await self.set_property_typed(UNIT_VENTILATIONCONFIG, SUBUNIT_01, property_id, desired_flow, PdoType.TYPE_CN_INT16)
+    async def set_flow_for_speed(self, speed: str, desired_flow: int):
+        """
+        Backwards-compatible: Set the targeted airflow in m³/h for the given speed as a string ('away', 'low', 'medium', 'high').
+        """
+        try:
+            speed_enum = AirflowSpeed[speed.strip().upper()]
+        except KeyError:
+            try:
+                speed_enum = AirflowSpeed(int(speed))
+            except Exception:
+                raise ValueError(f"Invalid airflow speed: {speed}")
+        await self.set_flow_for_speed_enum(speed_enum, desired_flow)
 
     async def get_bypass_enum(self) -> BypassMode:
         """Get the bypass mode as an enum (AUTO / OPEN / CLOSED)."""
