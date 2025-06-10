@@ -19,7 +19,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from asyncio import Future
-from typing import Callable, Dict, List, Literal, Any
+from typing import Callable, List, Literal, Any
 
 from aiocomfoconnect import Bridge
 from aiocomfoconnect.const import (
@@ -59,10 +59,19 @@ _LOGGER = logging.getLogger(__name__)
 
 class ComfoConnect(Bridge):
     """
-    Abstraction layer over the ComfoConnect LAN C API.
+    Provide an abstraction layer over the ComfoConnect LAN C API.
 
     This class manages the connection to a ComfoConnect bridge device, handles sensor registration,
     property access, and provides high-level methods for controlling and monitoring the ventilation system.
+
+    Attributes:
+        sensor_delay (int): Delay in seconds before emitting sensor values after connect.
+        _sensor_callback_fn (Callable[[Sensor, Any], None] | None): Callback for sensor updates.
+        _alarm_callback_fn (Callable[[int, Any], None] | None): Callback for alarm updates.
+        _sensors (dict[int, Sensor]): Registered sensors.
+        _sensors_values (dict[int, Any]): Cached sensor values.
+        _sensor_hold (Any): Internal hold state for sensors.
+        _tasks (set[asyncio.Task[Any]]): Set of running asyncio tasks.
     """
 
     # RMI Command Types (private to class)
@@ -74,7 +83,7 @@ class ComfoConnect(Bridge):
     _CMD_SET_MODE = 0x84
     _CMD_ENABLE_MODE = 0x85
 
-    def __init__(self, host: str, uuid: str, loop=None, sensor_callback=None, alarm_callback=None, sensor_delay=2):
+    def __init__(self, host: str, uuid: str, loop: asyncio.AbstractEventLoop | None = None, sensor_callback: Callable[[Sensor, Any], None] | None = None, alarm_callback: Callable[[int, Any], None] | None = None, sensor_delay: int = 2) -> None:
         """
         Initialize the ComfoConnect class.
 
@@ -82,25 +91,22 @@ class ComfoConnect(Bridge):
             host (str): The IP address or hostname of the bridge.
             uuid (str): The UUID to use for registration.
             loop (asyncio.AbstractEventLoop, optional): The event loop to use. Defaults to None.
-            sensor_callback (Callable, optional): Callback for sensor updates. Defaults to None.
-            alarm_callback (Callable, optional): Callback for alarm updates. Defaults to None.
+            sensor_callback (Callable[[Sensor, Any], None], optional): Callback for sensor updates. Defaults to None.
+            alarm_callback (Callable[[int, Any], None], optional): Callback for alarm updates. Defaults to None.
             sensor_delay (int, optional): Delay in seconds before emitting sensor values after connect. Defaults to 2.
         """
         super().__init__(host, uuid, loop)
-
-        self.set_sensor_callback(self._sensor_callback)  # Set the callback to our _sensor_callback method, so we can proces the callbacks.
-        self.set_alarm_callback(self._alarm_callback)  # Set the callback to our _alarm_callback method, so we can proces the callbacks.
+        self.set_sensor_callback(self._sensor_callback)
+        self.set_alarm_callback(self._alarm_callback)
         self.sensor_delay = sensor_delay
-
-        self._sensor_callback_fn: Callable = sensor_callback
-        self._alarm_callback_fn: Callable = alarm_callback
-        self._sensors: Dict[int, Sensor] = {}
-        self._sensors_values: Dict[int, any] = {}
+        self._sensor_callback_fn: Callable[[Sensor, Any], None] | None = sensor_callback
+        self._alarm_callback_fn: Callable[[int, Any], None] | None = alarm_callback
+        self._sensors: dict[int, Sensor] = {}
+        self._sensors_values: dict[int, Any] = {}
         self._sensor_hold = None
+        self._tasks: set[asyncio.Task[Any]] = set()
 
-        self._tasks = set()
-
-    def _unhold_sensors(self):
+    def _unhold_sensors(self) -> None:
         """
         Unhold the sensors and emit cached sensor values.
         """
@@ -110,14 +116,14 @@ class ComfoConnect(Bridge):
             if self._sensors_values.get(sensor_id) is not None:
                 self._sensor_callback(sensor_id, self._sensors_values.get(sensor_id))
 
-    async def connect(self, uuid: str):
+    async def connect(self, uuid: str) -> None:
         """
-        Connect to the bridge and start the session. Handles reconnection logic.
+        Connect to the bridge and start the session. Handle reconnection logic.
 
         Args:
             uuid (str): The UUID to use for registration.
         """
-        connected: Future = Future()
+        connected: asyncio.Future[bool] = asyncio.Future()
 
         async def _reconnect_loop():
             while True:
@@ -156,13 +162,13 @@ class ComfoConnect(Bridge):
         reconnect_task.add_done_callback(self._tasks.discard)
         await connected
 
-    async def disconnect(self):
+    async def disconnect(self) -> None:
         """
         Disconnect from the bridge.
         """
         await self._disconnect()
 
-    async def register_sensor(self, sensor: Sensor):
+    async def register_sensor(self, sensor: Sensor) -> None:
         """
         Register a sensor on the bridge.
 
@@ -173,7 +179,7 @@ class ComfoConnect(Bridge):
         self._sensors_values[sensor.id] = None
         await self.cmd_rpdo_request(sensor.id, sensor.type)
 
-    async def deregister_sensor(self, sensor: Sensor):
+    async def deregister_sensor(self, sensor: Sensor) -> None:
         """
         Deregister a sensor on the bridge.
 
@@ -184,7 +190,7 @@ class ComfoConnect(Bridge):
         del self._sensors[sensor.id]
         del self._sensors_values[sensor.id]
 
-    async def get_property(self, prop: Property, node_id=1) -> any:
+    async def get_property(self, prop: Property, node_id: int = 1) -> Any:
         """
         Get a property and convert to the right type.
 
@@ -228,7 +234,7 @@ class ComfoConnect(Bridge):
             case _:
                 return result.message
 
-    async def get_multiple_properties(self, unit: int, subunit: int, property_ids: List[int], node_id=1) -> Any:
+    async def get_multiple_properties(self, unit: int, subunit: int, property_ids: List[int], node_id: int = 1) -> Any:
         """
         Get multiple properties.
 
@@ -243,7 +249,7 @@ class ComfoConnect(Bridge):
         result = await self.cmd_rmi_request(bytestring([self._CMD_GET_MULTIPLE_PROPERTIES, unit, subunit, 0x01, 0x10 | len(property_ids), bytes(property_ids)]), node_id=node_id)
         return result.message
 
-    async def set_property(self, unit: int, subunit: int, property_id: int, value: int, node_id=1) -> Any:
+    async def set_property(self, unit: int, subunit: int, property_id: int, value: int, node_id: int = 1) -> Any:
         """
         Set a property.
 
@@ -259,7 +265,7 @@ class ComfoConnect(Bridge):
         result = await self.cmd_rmi_request(bytes([self._CMD_SET_PROPERTY, unit, subunit, property_id, value]), node_id=node_id)
         return result.message
 
-    async def set_property_typed(self, unit: int, subunit: int, property_id: int, value: int, pdo_type: PdoType, node_id=1) -> Any:
+    async def set_property_typed(self, unit: int, subunit: int, property_id: int, value: int, pdo_type: PdoType, node_id: int = 1) -> Any:
         """
         Set a typed property.
 
@@ -731,7 +737,3 @@ class ComfoConnect(Bridge):
             except Exception:
                 raise ValueError(f"Invalid mode: {mode}")
         await self.set_sensor_ventmode_humidity_protection_enum(mode_enum)
-
-    async def clear_errors(self):
-        """Clear the errors."""
-        await self.cmd_rmi_request(bytes([self._CMD_CLEAR_ERRORS, UNIT_ERROR, SUBUNIT_01]))
