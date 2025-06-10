@@ -326,32 +326,42 @@ class ComfoConnect(Bridge):
         errors = {bit: error_messages[bit] for bit in bytearray_to_bits(getattr(alarm, 'errors', b''))}
         self._alarm_callback_fn(node_id, errors)
 
-    async def get_mode(self) -> str:
-        """Get the current ventilation mode.
-
-        Returns:
-            str: The current mode ("manual" or "auto").
-        """
+    async def get_mode_enum(self) -> VentilationMode:
+        """Get the current ventilation mode as an enum (AUTO or MANUAL)."""
         result = await self.cmd_rmi_request(bytes([self._CMD_GET_MODE, UNIT_SCHEDULE, SUBUNIT_08, 0x01]))
-        # 0000000000ffffffff0000000001 = auto
-        # 0100000000ffffffffffffffff01 = manual
         mode = result.message[0]
-        return VentilationMode.MANUAL if mode == 1 else VentilationMode.AUTO
-
-    async def set_mode(self, mode: Literal["auto", "manual"]) -> None:
-        """Set the ventilation mode (auto / manual).
-
-        Args:
-            mode (Literal["auto", "manual"]): The desired mode.
-        Raises:
-            ValueError: If the mode is invalid.
-        """
-        if mode == VentilationMode.AUTO:
-            await self.cmd_rmi_request(bytes([self._CMD_ENABLE_MODE, UNIT_SCHEDULE, SUBUNIT_08, 0x01]))
-        elif mode == VentilationMode.MANUAL:
-            await self.cmd_rmi_request(bytes([self._CMD_SET_MODE, UNIT_SCHEDULE, SUBUNIT_08, 0x01, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01]))
-        else:
+        try:
+            return VentilationMode(mode)
+        except ValueError:
             raise ValueError(f"Invalid mode: {mode}")
+
+    async def get_mode(self) -> str:
+        """Backwards-compatible: Get the current ventilation mode as a string ('auto' or 'manual')."""
+        mode_enum = await self.get_mode_enum()
+        return str(mode_enum)
+
+    async def set_mode_enum(self, mode: VentilationMode) -> None:
+        """Set the ventilation mode using the enum (AUTO or MANUAL)."""
+        if not isinstance(mode, VentilationMode):
+            raise ValueError(f"Invalid mode: {mode}")
+        match mode:
+            case VentilationMode.AUTO:
+                await self.cmd_rmi_request(bytes([self._CMD_ENABLE_MODE, UNIT_SCHEDULE, SUBUNIT_08, 0x01]))
+            case VentilationMode.MANUAL:
+                await self.cmd_rmi_request(bytes([self._CMD_SET_MODE, UNIT_SCHEDULE, SUBUNIT_08, 0x01, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01]))
+            case _:
+                raise ValueError(f"Invalid mode: {mode}")
+
+    async def set_mode(self, mode: str) -> None:
+        """Backwards-compatible: Set the ventilation mode using a string ('auto' or 'manual')."""
+        try:
+            mode_enum = VentilationMode[mode.strip().upper()]
+        except KeyError:
+            try:
+                mode_enum = VentilationMode(int(mode))
+            except Exception:
+                raise ValueError(f"Invalid mode: {mode}")
+        await self.set_mode_enum(mode_enum)
 
     async def get_speed_enum(self) -> VentilationSpeed:
         """Get the current ventilation speed as an enum.

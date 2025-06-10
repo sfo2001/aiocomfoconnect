@@ -377,6 +377,14 @@ async def run_set_balance_mode(args: argparse.Namespace) -> None:
     await with_connected_bridge(args.host, args.uuid, do_set_balance_mode, args.mode)
 
 
+async def run_get_mode(args: argparse.Namespace) -> None:
+    """Get the current ventilation mode."""
+    async def do_get_mode(comfoconnect):
+        mode = await comfoconnect.get_mode()
+        print(str(mode))
+    await with_connected_bridge(args.host, args.uuid, do_get_mode)
+
+
 async def main(args: argparse.Namespace) -> None:
     """Main entry point for the CLI."""
     await args.func(args)
@@ -410,6 +418,10 @@ if __name__ == "__main__":
     p_set_speed.add_argument("--host", help="Host address of the bridge")
     p_set_speed.add_argument("--uuid", help="UUID of this app", default=DEFAULT_UUID)
     p_set_speed.set_defaults(func=run_set_speed)
+    p_get_mode = subparsers.add_parser("get-mode", help="Get the current ventilation mode")
+    p_get_mode.add_argument("--host", help="Host address of the bridge")
+    p_get_mode.add_argument("--uuid", help="UUID of this app", default=DEFAULT_UUID)
+    p_get_mode.set_defaults(func=run_get_mode)
     p_set_mode = subparsers.add_parser("set-mode", help="set operation mode")
     p_set_mode.add_argument("mode", help="Operation mode", choices=["auto", "manual"])
     p_set_mode.add_argument("--host", help="Host address of the bridge")
