@@ -231,6 +231,16 @@ class BypassMode(IntEnum):
         return self.name.lower()
 
 
+class AirflowSpeed(IntEnum):
+    AWAY = 3
+    LOW = 4
+    MEDIUM = 5
+    HIGH = 6
+
+    def __str__(self) -> str:
+        return self.name.lower()
+
+
 # Magic numbers and bit positions for airflow constraints
 CAN_ID_OFFSET: int = 0x40
 PDO_SHIFT: int = 14
