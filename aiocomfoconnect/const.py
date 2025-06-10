@@ -225,6 +225,9 @@ class VentilationBalance(Enum):
                 return member
         raise ValueError(f"Invalid mode combination: 6={mode_06}, 7={mode_07}")
 
+    def __str__(self) -> str:
+        return self.name.lower()
+
 
 class VentilationTemperatureProfile(IntEnum):
     NORMAL = 0  # 0100000000ffffffffffffffff00 = normal
