@@ -490,42 +490,67 @@ class ComfoConnect(Bridge):
                 raise ValueError(f"Invalid bypass mode: {mode}")
         await self.set_bypass_enum(mode_enum, timeout)
 
-    async def get_balance_mode(self) -> str:
-        """Get the ventilation balance mode (balance / supply only / exhaust only)."""
+    async def get_balance_mode_enum(self) -> VentilationBalance:
+        """Get the ventilation balance mode as an enum (BALANCE, SUPPLY_ONLY, EXHAUST_ONLY).
+
+        Returns:
+            VentilationBalance: The current balance mode.
+        Raises:
+            ValueError: If the mode combination is invalid.
+        """
         result_06 = await self.cmd_rmi_request(bytes([self._CMD_GET_MODE, UNIT_SCHEDULE, SUBUNIT_06, 0x01]))
         result_07 = await self.cmd_rmi_request(bytes([self._CMD_GET_MODE, UNIT_SCHEDULE, SUBUNIT_07, 0x01]))
-        # result_06:
-        # 0000000000080700000000000001 = balance
-        # 0100000000100e00000e0e000001 = supply only
-        # 0000000000080700000000000001 = exhaust only
-
-        # result_07:
-        # 0000000000080700000000000001 = balance
-        # 0000000000080700000000000001 = supply only
-        # 0100000000100e00000e0e000001 = exhaust only
         mode_06 = result_06.message[0]
         mode_07 = result_07.message[0]
-        if mode_06 == mode_07:
-            return VentilationBalance.BALANCE
-        if mode_06 == 1 and mode_07 == 0:
-            return VentilationBalance.SUPPLY_ONLY
-        if mode_06 == 0 and mode_07 == 1:
-            return VentilationBalance.EXHAUST_ONLY
-        raise ValueError(f"Invalid mode: 6={mode_06}, 7={mode_07}")
+        try:
+            return VentilationBalance.from_subunits(mode_06, mode_07)
+        except ValueError as e:
+            raise ValueError(f"Invalid mode: 6={mode_06}, 7={mode_07}") from e
 
-    async def set_balance_mode(self, mode: Literal["balance", "supply_only", "exhaust_only"], timeout: int = -1) -> None:
-        """Set the ventilation balance mode (balance / supply only / exhaust only)."""
-        if mode == VentilationBalance.BALANCE:
-            await self.cmd_rmi_request(bytes([self._CMD_ENABLE_MODE, UNIT_SCHEDULE, SUBUNIT_06, 0x01]))
-            await self.cmd_rmi_request(bytes([self._CMD_ENABLE_MODE, UNIT_SCHEDULE, SUBUNIT_07, 0x01]))
-        elif mode == VentilationBalance.SUPPLY_ONLY:
-            await self.cmd_rmi_request(bytestring([self._CMD_SET_MODE, UNIT_SCHEDULE, SUBUNIT_06, 0x01, 0x00, 0x00, 0x00, 0x00, timeout.to_bytes(4, "little", signed=True), 0x01]))
-            await self.cmd_rmi_request(bytes([self._CMD_ENABLE_MODE, UNIT_SCHEDULE, SUBUNIT_07, 0x01]))
-        elif mode == VentilationBalance.EXHAUST_ONLY:
-            await self.cmd_rmi_request(bytes([self._CMD_ENABLE_MODE, UNIT_SCHEDULE, SUBUNIT_06, 0x01]))
-            await self.cmd_rmi_request(bytestring([self._CMD_SET_MODE, UNIT_SCHEDULE, SUBUNIT_07, 0x01, 0x00, 0x00, 0x00, 0x00, timeout.to_bytes(4, "little", signed=True), 0x01]))
-        else:
-            raise ValueError(f"Invalid mode: {mode}")
+    async def get_balance_mode(self) -> str:
+        """Backwards-compatible: Get the ventilation balance mode as a string ('balance', 'supply_only', 'exhaust_only')."""
+        mode_enum = await self.get_balance_mode_enum()
+        return str(mode_enum)
+
+    async def set_balance_mode_enum(self, mode: VentilationBalance, timeout: int = -1) -> None:
+        """Set the ventilation balance mode using the enum (BALANCE, SUPPLY_ONLY, EXHAUST_ONLY).
+
+        Args:
+            mode (VentilationBalance): The desired balance mode.
+            timeout (int, optional): Timeout in seconds. Defaults to -1.
+        Raises:
+            ValueError: If the mode is invalid.
+        """
+        match mode:
+            case VentilationBalance.BALANCE:
+                await self.cmd_rmi_request(bytes([self._CMD_ENABLE_MODE, UNIT_SCHEDULE, SUBUNIT_06, 0x01]))
+                await self.cmd_rmi_request(bytes([self._CMD_ENABLE_MODE, UNIT_SCHEDULE, SUBUNIT_07, 0x01]))
+            case VentilationBalance.SUPPLY_ONLY:
+                await self.cmd_rmi_request(bytestring([
+                    self._CMD_SET_MODE, UNIT_SCHEDULE, SUBUNIT_06, 0x01,
+                    0x00, 0x00, 0x00, 0x00, timeout.to_bytes(4, "little", signed=True), 0x01
+                ]))
+                await self.cmd_rmi_request(bytes([self._CMD_ENABLE_MODE, UNIT_SCHEDULE, SUBUNIT_07, 0x01]))
+            case VentilationBalance.EXHAUST_ONLY:
+                await self.cmd_rmi_request(bytes([self._CMD_ENABLE_MODE, UNIT_SCHEDULE, SUBUNIT_06, 0x01]))
+                await self.cmd_rmi_request(bytestring([
+                    self._CMD_SET_MODE, UNIT_SCHEDULE, SUBUNIT_07, 0x01,
+                    0x00, 0x00, 0x00, 0x00, timeout.to_bytes(4, "little", signed=True), 0x01
+                ]))
+            case _:
+                raise ValueError(f"Invalid mode: {mode}")
+
+    async def set_balance_mode(self, mode: str, timeout: int = -1) -> None:
+        """Backwards-compatible: Set the ventilation balance mode using a string ('balance', 'supply_only', 'exhaust_only')."""
+        try:
+            mode_enum = VentilationBalance[mode.strip().upper()]
+        except KeyError:
+            try:
+                # Try by int value (if user passes 0, 1, 2, etc.)
+                mode_enum = VentilationBalance(int(mode))
+            except Exception:
+                raise ValueError(f"Invalid balance mode: {mode}")
+        await self.set_balance_mode_enum(mode_enum, timeout)
 
     async def get_boost(self) -> bool:
         """Get boost mode."""

@@ -1,6 +1,6 @@
 """ Constants """
 
-from enum import IntEnum
+from enum import IntEnum, Enum
 
 # PDO Types
 class PdoType:
@@ -187,12 +187,43 @@ class VentilationSetting(IntEnum):
         return self.name.lower()
 
 
-class VentilationBalance:
-    """Enum for ventilation balance."""
+class VentilationBalance(Enum):
+    """
+    Enum representing the ventilation balance mode.
 
-    BALANCE = "balance"
-    SUPPLY_ONLY = "supply_only"
-    EXHAUST_ONLY = "exhaust_only"
+    The mode is determined by the combination of the first byte (message[0])
+    from the RMI responses of subunits 06 and 07:
+
+    - (0, 0): BALANCE mode (both supply and exhaust active)
+    - (1, 0): SUPPLY_ONLY mode (supply only)
+    - (0, 1): EXHAUST_ONLY mode (exhaust only)
+
+    This mapping was confirmed by direct device testing and protocol analysis:
+    - Setting and reading the mode via CLI and inspecting debug output
+    - See aiocomfoconnect/comfoconnect.py:get_balance_mode for details
+    - Any other combination is considered invalid
+    """
+    BALANCE = (0, 0)
+    SUPPLY_ONLY = (1, 0)
+    EXHAUST_ONLY = (0, 1)
+
+    @classmethod
+    def from_subunits(cls, mode_06: int, mode_07: int) -> "VentilationBalance":
+        """
+        Map the (mode_06, mode_07) tuple to the corresponding VentilationBalance enum.
+
+        Args:
+            mode_06 (int): The first byte from subunit 06's RMI response.
+            mode_07 (int): The first byte from subunit 07's RMI response.
+        Returns:
+            VentilationBalance: The corresponding enum value.
+        Raises:
+            ValueError: If the combination is not recognized.
+        """
+        for member in cls:
+            if (mode_06, mode_07) == member.value:
+                return member
+        raise ValueError(f"Invalid mode combination: 6={mode_06}, 7={mode_07}")
 
 
 class VentilationTemperatureProfile(IntEnum):
