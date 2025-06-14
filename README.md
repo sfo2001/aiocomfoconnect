@@ -29,6 +29,7 @@ python -m aiocomfoconnect register --host 192.168.1.213
 python -m aiocomfoconnect set-speed away --host 192.168.1.213
 python -m aiocomfoconnect set-speed low --host 192.168.1.213
 python -m aiocomfoconnect set-mode auto --host 192.168.1.213
+python -m aiocomfoconnect get-mode --host 192.168.1.213
 python -m aiocomfoconnect set-speed medium --host 192.168.1.213
 python -m aiocomfoconnect set-speed high --host 192.168.1.213
 python -m aiocomfoconnect set-boost on --host 192.168.1.213 --timeout 1200
@@ -42,6 +43,8 @@ python -m aiocomfoconnect show-sensor 276 --host 192.168.1.213 -f
 
 python -m aiocomfoconnect get-property --host 192.168.1.213 1 1 8 9  # Unit 0x01, SubUnit 0x01, Property 0x08, Type STRING. See PROTOCOL-RMI.md
 ```
+
+> **Tip:** Run `python -m aiocomfoconnect --help` to see all available commands and options.
 
 ## Available methods
 
