@@ -303,12 +303,10 @@ class ComfoConnect(Bridge):
         """
         if self._sensor_callback_fn is None:
             return
-
         sensor = self._sensors.get(sensor_id)
         if sensor is None:
             _LOGGER.error(f"Unknown sensor id: {sensor_id}")
             return
-
         self._sensors_values[sensor_id] = sensor_value
 
         # Don't emit sensor values until we have received all the initial values.
