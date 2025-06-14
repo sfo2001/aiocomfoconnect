@@ -1,20 +1,28 @@
 """aiocomfoconnect CLI application
 
-This module provides a command-line interface for interacting with ComfoConnect LAN C devices.
-It supports discovering bridges, registering/deregistering apps, setting fan speed and mode,
-showing sensor values, and more.
+A command-line interface for interacting with Zehnder ComfoConnect LAN C devices.
+
+Features:
+- Discover bridges on the network
+- Register and deregister applications
+- Set and get fan speed, operation mode, and ComfoCool mode
+- Trigger or cancel boost mode
+- Show all or individual sensor values
+- Get and set property values
+- Get and set airflow for specific speeds
+- Get and set bypass and away modes
+- Advanced controls for balance mode, temperature profile, and error management
 
 Usage:
     python -m aiocomfoconnect --help
 
-Example:
+Examples:
     python -m aiocomfoconnect discover
     python -m aiocomfoconnect register --pin 1234 --name "My App"
     python -m aiocomfoconnect set-speed high
+    python -m aiocomfoconnect get-balance-mode
 
-Available actions:
-    discover, register, deregister, set-speed, set-mode, set-comfocool, set-boost,
-    show-sensors, show-sensor, get-property, get-flow-for-speed, set-flow-for-speed
+For a full list of commands and options, use the -h flag with any group or command.
 """
 
 from __future__ import annotations
@@ -28,6 +36,14 @@ from typing import Literal, Any
 
 from aiocomfoconnect import DEFAULT_NAME, DEFAULT_PIN, DEFAULT_UUID
 from aiocomfoconnect.comfoconnect import ComfoConnect
+from aiocomfoconnect.const import (
+    VentilationMode,
+    VentilationSetting,
+    VentilationBalance,
+    VentilationTemperatureProfile,
+    VentilationSpeed,
+    ComfoCoolMode,
+)
 from aiocomfoconnect.discovery import discover_bridges
 from aiocomfoconnect.exceptions import (
     AioComfoConnectNotConnected,
@@ -54,6 +70,22 @@ async def run_discover(args: argparse.Namespace) -> None:
     for bridge in bridges:
         print(bridge)
         print()
+
+
+async def run_register(args: argparse.Namespace) -> None:
+    """Register an app on the bridge."""
+    bridges = await discover_bridges(args.host)
+    if not bridges:
+        raise BridgeNotFoundException("No bridge found")
+    comfoconnect = ComfoConnect(bridges[0].host, bridges[0].uuid)
+    try:
+        await comfoconnect.connect(uuid)
+        yield comfoconnect
+    except ComfoConnectNotAllowed:
+        print("Could not connect to bridge. Please register first.")
+        sys.exit(1)
+    finally:
+        await comfoconnect.disconnect()
 
 
 async def run_register(args: argparse.Namespace) -> None:
