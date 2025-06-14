@@ -13,6 +13,21 @@ Example:
     await comfo.connect(local_uuid)
     ...
 """
+"""ComfoConnect Bridge API abstraction
+
+This module provides the ComfoConnect class, an abstraction layer over the Zehnder ComfoConnect LAN C API.
+It manages connection, sensor registration, property access, and provides high-level methods for controlling
+and monitoring the ventilation system.
+
+Classes:
+    ComfoConnect: Main class for managing a connection to a ComfoConnect bridge device and interacting with sensors and properties.
+
+Example:
+    from aiocomfoconnect.comfoconnect import ComfoConnect
+    comfo = ComfoConnect(host, uuid)
+    await comfo.connect(local_uuid)
+    ...
+"""
 
 from __future__ import annotations
 
