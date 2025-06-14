@@ -3,6 +3,8 @@
 `aiocomfoconnect` is an asyncio Python 3 library for communicating with a Zehnder ComfoAir Q350/450/600 ventilation system. It's the successor of
 [comfoconnect](https://github.com/michaelarnauts/comfoconnect).
 
+The [home-assistant-comfoconnect](https://github.com/michaelarnauts/home-assistant-comfoconnect) is using this library.
+
 It's compatible with Python 3.10 and higher.
 
 ## Installation
@@ -161,7 +163,7 @@ python3 script/decode_pcap.py /tmp/capture.pcap
 ### Generate zehnder_pb2.py file
 
 ```shell
-python3 -m pip install grpcio-tools==1.67.1
+python3 -m pip install grpcio-tools==1.73.0
 python3 -m grpc_tools.protoc -Iprotobuf --python_out=aiocomfoconnect/protobuf protobuf/*.proto
 ```
 
