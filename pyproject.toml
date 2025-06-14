@@ -1,3 +1,31 @@
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[project]
+name = "aiocomfoconnect"
+version = "0.1.14"
+description = "aiocomfoconnect is an asyncio Python 3 library for communicating with a Zehnder ComfoAir Q350/450/600 ventilation system"
+authors = ["Michaël Arnauts <michael.arnauts@gmail.com>"]
+readme = "README.md"
+homepage = "https://github.com/michaelarnauts/aiocomfoconnect"
+requires-python = ">=3.10"
+dependencies = [
+    "aiohttp>=3.8.0",
+    "protobuf>=6.31",
+    "netifaces>=0.11.0"
+]
+
+[project.optional-dependencies]
+dev = [
+    "grpcio-tools>=1.67.1",
+    "dpkt>=1.9.8",
+    "black>=24.4.0",
+    "isort>=5.10.1",
+    "pylint>=3.2",
+    "pytest>=8.2.0"
+]
+
 [tool.poetry]
 name = "aiocomfoconnect"
 version = "0.1.15"
@@ -19,10 +47,6 @@ black = "^24.4.0"
 isort = "^5.10.1"
 pylint = "^3.2"
 pytest = "^8.2.0"
-
-[build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
 
 [tool.isort]
 profile = "black"

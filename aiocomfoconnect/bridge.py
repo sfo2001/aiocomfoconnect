@@ -226,7 +226,7 @@ class Bridge:
                 if value is not None:
                     setattr(msg, param, value)
 
-        message = Message(cmd, msg, self._local_uuid, self.uuid)
+        message = Message(cmd, msg, self._local_uuid or '', self.uuid)
 
         fut = asyncio.Future()
         if reply:
@@ -612,6 +612,8 @@ class Message:
         cmd = zehnder_pb2.GatewayOperation()
         cmd.ParseFromString(cmd_buf)
         cmd_type = cls.REQUEST_MAPPING.get(cmd.type)
+        if cmd_type is None:
+            raise ValueError(f"Unknown command type: {cmd.type}")
         msg = cmd_type()
         msg.ParseFromString(msg_buf)
         return Message(cmd, msg, src_buf.hex(), dst_buf.hex())
