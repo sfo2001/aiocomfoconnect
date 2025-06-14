@@ -13,23 +13,6 @@ Example:
     await comfo.connect(local_uuid)
     ...
 """
-"""ComfoConnect Bridge API abstraction
-
-This module provides the ComfoConnect class, an abstraction layer over the Zehnder ComfoConnect LAN C API.
-It manages connection, sensor registration, property access, and provides high-level methods for controlling
-and monitoring the ventilation system.
-
-Classes:
-    ComfoConnect: Main class for managing a connection to a ComfoConnect bridge device and interacting with sensors and properties.
-
-Example:
-    from aiocomfoconnect.comfoconnect import ComfoConnect
-    comfo = ComfoConnect(host, uuid)
-    await comfo.connect(local_uuid)
-    ...
-"""
-
-from __future__ import annotations
 
 import asyncio
 import logging
@@ -98,7 +81,15 @@ class ComfoConnect(Bridge):
     _CMD_SET_MODE = 0x84
     _CMD_ENABLE_MODE = 0x85
 
-    def __init__(self, host: str, uuid: str, loop: asyncio.AbstractEventLoop | None = None, sensor_callback: Callable[[Sensor, Any], None] | None = None, alarm_callback: Callable[[int, Any], None] | None = None, sensor_delay: int = 2) -> None:
+    def __init__(
+        self,
+        host: str,
+        uuid: str,
+        loop: asyncio.AbstractEventLoop | None = None,
+        sensor_callback: Callable[[Sensor, Any], Any] | None = None,
+        alarm_callback: Callable[[int, Any], Any] | None = None,
+        sensor_delay: int = 2,
+    ):
         """
         Initialize the ComfoConnect class.
 
@@ -586,12 +577,14 @@ class ComfoConnect(Bridge):
         return mode == 1
 
     async def set_boost(self, mode: bool, timeout: int = 3600) -> None:
+    async def set_boost(self, mode: bool, timeout: int = 3600) -> None:
         """Activate boost mode."""
         if mode:
             await self.cmd_rmi_request(bytestring([self._CMD_SET_MODE, UNIT_SCHEDULE, SUBUNIT_01, 0x06, 0x00, 0x00, 0x00, 0x00, timeout.to_bytes(4, "little", signed=True), 0x03]))
         else:
             await self.cmd_rmi_request(bytes([self._CMD_ENABLE_MODE, UNIT_SCHEDULE, SUBUNIT_01, 0x06]))
 
+    async def get_away(self) -> bool:
     async def get_away(self) -> bool:
         """Get away mode."""
         result = await self.cmd_rmi_request(bytes([self._CMD_GET_MODE, UNIT_SCHEDULE, SUBUNIT_01, 0x0B]))
@@ -600,6 +593,7 @@ class ComfoConnect(Bridge):
         mode = result.message[0]
         return mode == 1
 
+    async def set_away(self, mode: bool, timeout: int = 3600) -> None:
     async def set_away(self, mode: bool, timeout: int = 3600) -> None:
         """Activate away mode."""
         if mode:

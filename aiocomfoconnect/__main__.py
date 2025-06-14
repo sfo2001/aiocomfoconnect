@@ -391,7 +391,7 @@ async def main(args: argparse.Namespace) -> None:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(description="aiocomfoconnect CLI for ComfoConnect LAN C devices")
     parser.add_argument("--debug", "-d", help="Enable debug logging", default=False, action="store_true")
     subparsers = parser.add_subparsers(required=True, dest="action")
     p_discover = subparsers.add_parser("discover", help="discover ComfoConnect LAN C devices on your network")
