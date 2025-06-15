@@ -1,20 +1,28 @@
-""" aiocomfoconnect CLI application
+"""aiocomfoconnect CLI application
 
-This module provides a command-line interface for interacting with ComfoConnect LAN C devices.
-It supports discovering bridges, registering/deregistering apps, setting fan speed and mode,
-showing sensor values, and more.
+A command-line interface for interacting with Zehnder ComfoConnect LAN C devices.
+
+Features:
+- Discover bridges on the network
+- Register and deregister applications
+- Set and get fan speed, operation mode, and ComfoCool mode
+- Trigger or cancel boost mode
+- Show all or individual sensor values
+- Get and set property values
+- Get and set airflow for specific speeds
+- Get and set bypass and away modes
+- Advanced controls for balance mode, temperature profile, and error management
 
 Usage:
     python -m aiocomfoconnect --help
 
-Example:
+Examples:
     python -m aiocomfoconnect discover
     python -m aiocomfoconnect register --pin 1234 --name "My App"
     python -m aiocomfoconnect set-speed high
+    python -m aiocomfoconnect get-balance-mode
 
-Available actions:
-    discover, register, deregister, set-speed, set-mode, set-comfocool, set-boost,
-    show-sensors, show-sensor, get-property, get-flow-for-speed, set-flow-for-speed
+For a full list of commands and options, use the -h flag with any group or command.
 """
 
 from __future__ import annotations
@@ -26,6 +34,14 @@ import sys
 
 from aiocomfoconnect import DEFAULT_NAME, DEFAULT_PIN, DEFAULT_UUID
 from aiocomfoconnect.comfoconnect import ComfoConnect
+from aiocomfoconnect.const import (
+    VentilationMode,
+    VentilationSetting,
+    VentilationBalance,
+    VentilationTemperatureProfile,
+    VentilationSpeed,
+    ComfoCoolMode,
+)
 from aiocomfoconnect.discovery import discover_bridges
 from aiocomfoconnect.exceptions import (
     AioComfoConnectNotConnected,
@@ -36,6 +52,7 @@ from aiocomfoconnect.exceptions import (
 )
 from aiocomfoconnect.properties import Property
 from aiocomfoconnect.sensors import SENSORS
+from aiocomfoconnect.const import VentilationTemperatureProfile
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -228,25 +245,148 @@ async def run_get_property(args: argparse.Namespace) -> None:
 
 async def run_get_flow_for_speed(args: argparse.Namespace) -> None:
     """Get the configured airflow for the specified speed."""
-    async def do_get_flow(comfoconnect, speed):
+    async def do_get_flow_for_speed(comfoconnect, speed):
         print(await comfoconnect.get_flow_for_speed(speed))
-    await with_connected_bridge(args.host, args.uuid, do_get_flow, args.speed)
+    await with_connected_bridge(args.host, args.uuid, do_get_flow_for_speed, args.speed)
 
 async def run_set_flow_for_speed(args: argparse.Namespace) -> None:
     """Set the configured airflow for the specified speed."""
-    async def do_set_flow_for_speed(comfoconnect, speed, flow):
-        await comfoconnect.set_flow_for_speed(speed, flow)
+    async def do_set_flow(comfoconnect, speed, desired_flow):
+        await comfoconnect.set_flow_for_speed(speed, desired_flow)
+    await with_connected_bridge(args.host, args.uuid, do_set_flow, args.speed, args.flow)
 
-    await with_connected_bridge(args.host, args.uuid, do_set_flow_for_speed, args.speed, args.flow)
+
+async def run_list_sensors(args: argparse.Namespace) -> None:
+    """List all known sensors."""
+    print(f"{'ID':>6} | {'Name':<40} | {'Unit':<8}")
+    print("-" * 60)
+    for sensor_id, sensor in sorted(SENSORS.items()):
+        print(f"{sensor_id:6} | {sensor.name:<40} | {sensor.unit or '-':<8}")
+
+
+async def run_get_temperature_profile(args: argparse.Namespace) -> None:
+    """Get the current temperature profile."""
+    async def do_get_profile(comfoconnect):
+        profile = await comfoconnect.get_temperature_profile()
+        print(str(profile))
+    await with_connected_bridge(args.host, args.uuid, do_get_profile)
+
+
+async def run_set_temperature_profile(args: argparse.Namespace) -> None:
+    """Set the temperature profile (warm / normal / cool)."""
+    async def do_set_profile(comfoconnect, profile_str):
+        await comfoconnect.set_temperature_profile(profile_str)
+    await with_connected_bridge(args.host, args.uuid, do_set_profile, args.profile)
+
+
+async def run_get_speed(args: argparse.Namespace) -> None:
+    """Get the current ventilation speed."""
+    async def do_get_speed(comfoconnect):
+        speed = await comfoconnect.get_speed()
+        print(str(speed))
+    await with_connected_bridge(args.host, args.uuid, do_get_speed)
+
+
+async def run_get_comfocool(args: argparse.Namespace) -> None:
+    """Get the current ComfoCool mode."""
+    async def do_get_comfocool(comfoconnect):
+        mode = await comfoconnect.get_comfocool_mode()
+        print(str(mode))
+    await with_connected_bridge(args.host, args.uuid, do_get_comfocool)
+
+
+async def run_get_bypass(args: argparse.Namespace) -> None:
+    """Get the current bypass mode."""
+    async def do_get_bypass(comfoconnect):
+        mode = await comfoconnect.get_bypass()
+        print(str(mode))
+    await with_connected_bridge(args.host, args.uuid, do_get_bypass)
+
+
+async def run_set_bypass(args: argparse.Namespace) -> None:
+    """Set the bypass mode."""
+    async def do_set_bypass(comfoconnect, mode):
+        await comfoconnect.set_bypass(mode)
+    await with_connected_bridge(args.host, args.uuid, do_set_bypass, args.mode)
+
+
+async def run_get_sensor_ventmode_temperature_passive(args: argparse.Namespace) -> None:
+    """Get the current sensor-based ventilation mode (temperature passive)."""
+    async def do_get(comfoconnect):
+        mode = await comfoconnect.get_sensor_ventmode_temperature_passive()
+        print(str(mode))
+    await with_connected_bridge(args.host, args.uuid, do_get)
+
+
+async def run_set_sensor_ventmode_temperature_passive(args: argparse.Namespace) -> None:
+    """Set the sensor-based ventilation mode (temperature passive)."""
+    async def do_set(comfoconnect, mode):
+        await comfoconnect.set_sensor_ventmode_temperature_passive(mode)
+    await with_connected_bridge(args.host, args.uuid, do_set, args.mode)
+
+
+async def run_get_sensor_ventmode_humidity_comfort(args: argparse.Namespace) -> None:
+    """Get the current sensor-based ventilation mode (humidity comfort)."""
+    async def do_get(comfoconnect):
+        mode = await comfoconnect.get_sensor_ventmode_humidity_comfort()
+        print(str(mode))
+    await with_connected_bridge(args.host, args.uuid, do_get)
+
+
+async def run_set_sensor_ventmode_humidity_comfort(args: argparse.Namespace) -> None:
+    """Set the sensor-based ventilation mode (humidity comfort)."""
+    async def do_set(comfoconnect, mode):
+        await comfoconnect.set_sensor_ventmode_humidity_comfort(mode)
+    await with_connected_bridge(args.host, args.uuid, do_set, args.mode)
+
+
+async def run_get_sensor_ventmode_humidity_protection(args: argparse.Namespace) -> None:
+    """Get the current sensor-based ventilation mode (humidity protection)."""
+    async def do_get(comfoconnect):
+        mode = await comfoconnect.get_sensor_ventmode_humidity_protection()
+        print(str(mode))
+    await with_connected_bridge(args.host, args.uuid, do_get)
+
+
+async def run_set_sensor_ventmode_humidity_protection(args: argparse.Namespace) -> None:
+    """Set the sensor-based ventilation mode (humidity protection)."""
+    async def do_set(comfoconnect, mode):
+        await comfoconnect.set_sensor_ventmode_humidity_protection(mode)
+    await with_connected_bridge(args.host, args.uuid, do_set, args.mode)
+
+
+async def run_get_balance_mode(args: argparse.Namespace) -> None:
+    """Get the current ventilation balance mode."""
+    async def do_get_balance_mode(comfoconnect):
+        mode = await comfoconnect.get_balance_mode()
+        print(str(mode))
+    await with_connected_bridge(args.host, args.uuid, do_get_balance_mode)
+
+
+async def run_set_balance_mode(args: argparse.Namespace) -> None:
+    """Set the ventilation balance mode."""
+    async def do_set_balance_mode(comfoconnect, mode):
+        await comfoconnect.set_balance_mode(mode)
+    await with_connected_bridge(args.host, args.uuid, do_set_balance_mode, args.mode)
+
+
+async def run_get_mode(args: argparse.Namespace) -> None:
+    """Get the current ventilation mode."""
+    async def do_get_mode(comfoconnect):
+        mode = await comfoconnect.get_mode()
+        print(str(mode))
+    await with_connected_bridge(args.host, args.uuid, do_get_mode)
+
 
 async def main(args: argparse.Namespace) -> None:
     """Main entry point for the CLI."""
     await args.func(args)
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(description="aiocomfoconnect CLI for ComfoConnect LAN C devices")
     parser.add_argument("--debug", "-d", help="Enable debug logging", default=False, action="store_true")
     subparsers = parser.add_subparsers(required=True, dest="action")
+    
     p_discover = subparsers.add_parser("discover", help="discover ComfoConnect LAN C devices on your network")
     p_discover.add_argument("--host", help="Host address of the bridge")
     p_discover.set_defaults(func=run_discover)
@@ -264,18 +404,31 @@ if __name__ == "__main__":
     p_deregister.add_argument("--host", help="Host address of the bridge")
     p_deregister.add_argument("--uuid", help="UUID of this app", default=DEFAULT_UUID)
     p_deregister.set_defaults(func=run_deregister)
-
+    
+    p_get_speed = subparsers.add_parser("get-speed", help="Get the current fan speed")
+    p_get_speed.add_argument("--host", help="Host address of the bridge")
+    p_get_speed.add_argument("--uuid", help="UUID of this app", default=DEFAULT_UUID)
+    p_get_speed.set_defaults(func=run_get_speed)
+    
     p_set_speed = subparsers.add_parser("set-speed", help="set the fan speed")
     p_set_speed.add_argument("speed", help="Fan speed", choices=["low", "medium", "high", "away"])
     p_set_speed.add_argument("--host", help="Host address of the bridge")
     p_set_speed.add_argument("--uuid", help="UUID of this app", default=DEFAULT_UUID)
     p_set_speed.set_defaults(func=run_set_speed)
-
+    p_get_mode = subparsers.add_parser("get-mode", help="Get the current ventilation mode")
+    p_get_mode.add_argument("--host", help="Host address of the bridge")
+    p_get_mode.add_argument("--uuid", help="UUID of this app", default=DEFAULT_UUID)
+    p_get_mode.set_defaults(func=run_get_mode)
     p_set_mode = subparsers.add_parser("set-mode", help="set operation mode")
     p_set_mode.add_argument("mode", help="Operation mode", choices=["auto", "manual"])
     p_set_mode.add_argument("--host", help="Host address of the bridge")
     p_set_mode.add_argument("--uuid", help="UUID of this app", default=DEFAULT_UUID)
     p_set_mode.set_defaults(func=run_set_mode)
+    
+    p_get_comfocool = subparsers.add_parser("get-comfocool", help="Get the current ComfoCool mode")
+    p_get_comfocool.add_argument("--host", help="Host address of the bridge")
+    p_get_comfocool.add_argument("--uuid", help="UUID of this app", default=DEFAULT_UUID)
+    p_get_comfocool.set_defaults(func=run_get_comfocool)
 
     p_set_comfocool = subparsers.add_parser("set-comfocool", help="set comfocool mode")
     p_set_comfocool.add_argument("mode", help="Comfocool mode", choices=["auto", "off"])
@@ -324,13 +477,78 @@ if __name__ == "__main__":
     p_set_flow_speed.add_argument("--host", help="Host address of the bridge")
     p_set_flow_speed.add_argument("--uuid", help="UUID of this app", default=DEFAULT_UUID)
     p_set_flow_speed.set_defaults(func=run_set_flow_for_speed)
+    
+    p_list_sensors = subparsers.add_parser("list-sensors", help="list all known sensors")
+    p_list_sensors.set_defaults(func=run_list_sensors)
+    
+    p_get_temp_profile = subparsers.add_parser("get-temperature-profile", help="Get the current temperature profile")
+    p_get_temp_profile.add_argument("--host", help="Host address of the bridge")
+    p_get_temp_profile.add_argument("--uuid", help="UUID of this app", default=DEFAULT_UUID)
+    p_get_temp_profile.set_defaults(func=run_get_temperature_profile)
+    
+    p_set_temp_profile = subparsers.add_parser("set-temperature-profile", help="Set the temperature profile")
+    p_set_temp_profile.add_argument("profile", help="Temperature profile", choices=["warm", "normal", "cool"])
+    p_set_temp_profile.add_argument("--host", help="Host address of the bridge")
+    p_set_temp_profile.add_argument("--uuid", help="UUID of this app", default=DEFAULT_UUID)
+    p_set_temp_profile.set_defaults(func=run_set_temperature_profile)
+    p_get_bypass = subparsers.add_parser("get-bypass", help="Get the current bypass mode")
+    p_get_bypass.add_argument("--host", help="Host address of the bridge")
+    p_get_bypass.add_argument("--uuid", help="UUID of this app", default=DEFAULT_UUID)
+    p_get_bypass.set_defaults(func=run_get_bypass)
+    p_set_bypass = subparsers.add_parser("set-bypass", help="Set the bypass mode")
+    p_set_bypass.add_argument("mode", help="Bypass mode", choices=["auto", "open", "closed"])
+    p_set_bypass.add_argument("--host", help="Host address of the bridge")
+    p_set_bypass.add_argument("--uuid", help="UUID of this app", default=DEFAULT_UUID)
+    p_set_bypass.set_defaults(func=run_set_bypass)
+    p_get_sensor_temp_passive = subparsers.add_parser("get-sensor-ventmode-temperature-passive", help="Get the current sensor-based ventilation mode (temperature passive)")
+    p_get_sensor_temp_passive.add_argument("--host", help="Host address of the bridge")
+    p_get_sensor_temp_passive.add_argument("--uuid", help="UUID of this app", default=DEFAULT_UUID)
+    p_get_sensor_temp_passive.set_defaults(func=run_get_sensor_ventmode_temperature_passive)
 
-    arguments = parser.parse_args()
-    if arguments.debug:
-        logging.basicConfig(level=logging.DEBUG)
-    else:
-        logging.basicConfig(level=logging.WARNING)
+    p_set_sensor_temp_passive = subparsers.add_parser("set-sensor-ventmode-temperature-passive", help="Set the sensor-based ventilation mode (temperature passive)")
+    p_set_sensor_temp_passive.add_argument("mode", help="Mode", choices=["auto", "on", "off"])
+    p_set_sensor_temp_passive.add_argument("--host", help="Host address of the bridge")
+    p_set_sensor_temp_passive.add_argument("--uuid", help="UUID of this app", default=DEFAULT_UUID)
+    p_set_sensor_temp_passive.set_defaults(func=run_set_sensor_ventmode_temperature_passive)
+
+    p_get_sensor_hum_comfort = subparsers.add_parser("get-sensor-ventmode-humidity-comfort", help="Get the current sensor-based ventilation mode (humidity comfort)")
+    p_get_sensor_hum_comfort.add_argument("--host", help="Host address of the bridge")
+    p_get_sensor_hum_comfort.add_argument("--uuid", help="UUID of this app", default=DEFAULT_UUID)
+    p_get_sensor_hum_comfort.set_defaults(func=run_get_sensor_ventmode_humidity_comfort)
+
+    p_set_sensor_hum_comfort = subparsers.add_parser("set-sensor-ventmode-humidity-comfort", help="Set the sensor-based ventilation mode (humidity comfort)")
+    p_set_sensor_hum_comfort.add_argument("mode", help="Mode", choices=["auto", "on", "off"])
+    p_set_sensor_hum_comfort.add_argument("--host", help="Host address of the bridge")
+    p_set_sensor_hum_comfort.add_argument("--uuid", help="UUID of this app", default=DEFAULT_UUID)
+    p_set_sensor_hum_comfort.set_defaults(func=run_set_sensor_ventmode_humidity_comfort)
+
+    p_get_sensor_hum_protection = subparsers.add_parser("get-sensor-ventmode-humidity-protection", help="Get the current sensor-based ventilation mode (humidity protection)")
+    p_get_sensor_hum_protection.add_argument("--host", help="Host address of the bridge")
+    p_get_sensor_hum_protection.add_argument("--uuid", help="UUID of this app", default=DEFAULT_UUID)
+    p_get_sensor_hum_protection.set_defaults(func=run_get_sensor_ventmode_humidity_protection)
+
+    p_set_sensor_hum_protection = subparsers.add_parser("set-sensor-ventmode-humidity-protection", help="Set the sensor-based ventilation mode (humidity protection)")
+    p_set_sensor_hum_protection.add_argument("mode", help="Mode", choices=["auto", "on", "off"])
+    p_set_sensor_hum_protection.add_argument("--host", help="Host address of the bridge")
+    p_set_sensor_hum_protection.add_argument("--uuid", help="UUID of this app", default=DEFAULT_UUID)
+    p_set_sensor_hum_protection.set_defaults(func=run_set_sensor_ventmode_humidity_protection)
+  
+    p_get_balance_mode = subparsers.add_parser("get-balance-mode", help="Get the current ventilation balance mode")
+    p_get_balance_mode.add_argument("--host", help="Host address of the bridge")
+    p_get_balance_mode.add_argument("--uuid", help="UUID of this app", default=DEFAULT_UUID)
+    p_get_balance_mode.set_defaults(func=run_get_balance_mode)
+
+    p_set_balance_mode = subparsers.add_parser("set-balance-mode", help="Set the ventilation balance mode")
+    p_set_balance_mode.add_argument("mode", help="Balance mode", choices=["balance", "supply_only", "exhaust_only"])
+    p_set_balance_mode.add_argument("--host", help="Host address of the bridge")
+    p_set_balance_mode.add_argument("--uuid", help="UUID of this app", default=DEFAULT_UUID)
+    p_set_balance_mode.set_defaults(func=run_set_balance_mode)
     try:
+        arguments = parser.parse_args()
+        if arguments.debug:
+            logging.basicConfig(level=logging.DEBUG)
+        else:
+            logging.basicConfig(level=logging.WARNING)
         asyncio.run(main(arguments))
     except KeyboardInterrupt:
         pass
