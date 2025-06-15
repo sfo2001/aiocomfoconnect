@@ -1,4 +1,24 @@
-""" ComfoConnect Bridge API """
+""" ComfoConnect Bridge API
+
+This module provides the Bridge class for interacting with the Zehnder ComfoConnect LAN C API.
+It manages the connection, message sending/receiving, and provides methods for session management,
+device registration, and data requests. It also defines the EventBus and Message classes for internal use.
+
+Classes:
+    Bridge: Main class for managing a connection to a ComfoConnect bridge device.
+    EventBus: Simple event bus for async replies.
+    Message: Encapsulates a message sent to/from the bridge.
+    SelfDeregistrationError: Exception for self-deregistration attempts.
+
+Exceptions:
+    Raises various custom exceptions for connection errors, protocol errors, and invalid operations.
+
+Example:
+    from aiocomfoconnect.bridge import Bridge
+    bridge = Bridge(host, uuid)
+    await bridge._connect(local_uuid)
+    ...
+"""
 
 from __future__ import annotations
 
@@ -6,7 +26,7 @@ import asyncio
 import logging
 import struct
 from asyncio import StreamReader, StreamWriter
-from typing import Awaitable
+from typing import Awaitable, Callable, Any
 
 from google.protobuf.message import DecodeError
 from google.protobuf.message import Message as ProtobufMessage
@@ -26,147 +46,211 @@ from .exceptions import (
 )
 from .protobuf import zehnder_pb2
 
+from aiocomfoconnect.decorators import log_call
+
 _LOGGER = logging.getLogger(__name__)
 
-TIMEOUT = 5
+TIMEOUT: int = 5
 
 
 class SelfDeregistrationError(Exception):
     """Exception raised when trying to deregister self."""
+    pass
 
 
 class EventBus:
-    """An event bus for async replies."""
+    """An event bus for async replies.
 
-    def __init__(self):
-        self.listeners = {}
+    Attributes:
+        listeners (dict[int, set[asyncio.Future]]): Mapping of event references to sets of futures.
+    """
+    def __init__(self) -> None:
+        self.listeners: dict[int, set[asyncio.Future]] = {}
 
-    def add_listener(self, event_name, future):
-        """Add a listener to the event bus."""
-        _LOGGER.debug("Adding listener for event %s", event_name)
+    def add_listener(self, event_name: int, future: asyncio.Future) -> None:
+        """Add a listener to the event bus.
+
+        Args:
+            event_name (int): The event reference number.
+            future (asyncio.Future): The future to be set when the event is emitted.
+        """
+        _LOGGER.debug(f"Adding listener for event {event_name}")
         if not self.listeners.get(event_name, None):
             self.listeners[event_name] = {future}
         else:
             self.listeners[event_name].add(future)
 
-    def emit(self, event_name, event):
-        """Emit an event to the event bus."""
-        _LOGGER.debug("Emitting for event %s", event_name)
-        futures = self.listeners.get(event_name, [])
+    def emit(self, event_name: int, event: Any) -> None:
+        """Emit an event to the event bus.
+
+        Args:
+            event_name (int): The event reference number.
+            event (Any): The event object or exception to set on the futures.
+        """
+        _LOGGER.debug(f"Emitting for event {event_name}")
+        futures = self.listeners.get(event_name, set())
         for future in futures:
             if isinstance(event, Exception):
                 future.set_exception(event)
             else:
                 future.set_result(event)
-        del self.listeners[event_name]
+        if event_name in self.listeners:
+            del self.listeners[event_name]
 
 
 class Bridge:
-    """ComfoConnect LAN C API."""
+    """Bridge for interacting with the Zehnder ComfoConnect LAN C API.
 
-    PORT = 56747
+    Manages the connection to a ComfoConnect bridge device, handles message sending and receiving,
+    and provides methods for session management, device registration, and data requests.
 
-    def __init__(self, host: str, uuid: str, loop=None):
+    Attributes:
+        host (str): The bridge host address.
+        uuid (str): The bridge UUID.
+        _local_uuid (str | None): The local UUID for the session.
+        _reader (StreamReader | None): The asyncio stream reader.
+        _writer (StreamWriter | None): The asyncio stream writer.
+        _reference (int | None): The current message reference number.
+        _event_bus (EventBus | None): The event bus for async replies.
+        __sensor_callback_fn (Callable | None): Callback for sensor messages.
+        __alarm_callback_fn (Callable | None): Callback for alarm messages.
+        _loop (asyncio.AbstractEventLoop): The event loop in use.
+    """
+    PORT: int = 56747
+
+    def __init__(self, host: str, uuid: str, loop: asyncio.AbstractEventLoop | None = None) -> None:
         self.host: str = host
         self.uuid: str = uuid
-        self._local_uuid: str = None
+        self._local_uuid: str | None = None
+        self._reader: StreamReader | None = None
+        self._writer: StreamWriter | None = None
+        self._reference: int | None = None
+        self._event_bus: EventBus | None = None
+        self.__sensor_callback_fn: Callable | None = None
+        self.__alarm_callback_fn: Callable | None = None
+        self._loop: asyncio.AbstractEventLoop = loop or asyncio.get_running_loop()
+        self._read_task: asyncio.Task | None = None
 
-        self._reader: StreamReader = None
-        self._writer: StreamWriter = None
-        self._reference = None
-
-        self._event_bus: EventBus = None
-
-        self.__sensor_callback_fn: callable = None
-        self.__alarm_callback_fn: callable = None
-
-        self._loop = loop or asyncio.get_running_loop()
-
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"<Bridge {self.host}, UID={self.uuid}>"
 
-    def set_sensor_callback(self, callback: callable):
-        """Set a callback to be called when a message is received."""
+    def set_sensor_callback(self, callback: Callable) -> None:
+        """Set a callback to be called when a sensor message is received.
+
+        Args:
+            callback (Callable): The callback function.
+        """
         self.__sensor_callback_fn = callback
 
-    def set_alarm_callback(self, callback: callable):
-        """Set a callback to be called when an alarm is received."""
+    def set_alarm_callback(self, callback: Callable) -> None:
+        """Set a callback to be called when an alarm is received.
+
+        Args:
+            callback (Callable): The callback function.
+        """
         self.__alarm_callback_fn = callback
 
-    async def _connect(self, uuid: str):
-        """Connect to the bridge."""
-        _LOGGER.debug("Connecting to bridge %s", self.host)
+    async def _connect(self, uuid: str) -> asyncio.Task:
+        """Connect to the bridge.
+
+        Args:
+            uuid (str): The local UUID to use for the session.
+
+        Returns:
+            asyncio.Task: The background task for reading messages.
+
+        Raises:
+            AioComfoConnectTimeout: If connection times out.
+        """
+        _LOGGER.debug(f"Connecting to bridge {self.host}")
         try:
-            self._reader, self._writer = await asyncio.wait_for(asyncio.open_connection(self.host, self.PORT), TIMEOUT)
+            self._reader, self._writer = await asyncio.wait_for(
+                asyncio.open_connection(self.host, self.PORT), TIMEOUT
+            )
         except asyncio.TimeoutError as exc:
-            _LOGGER.warning("Timeout while connecting to bridge %s", self.host)
+            _LOGGER.warning(f"Timeout while connecting to bridge {self.host}")
             raise AioComfoConnectTimeout("Timeout while connecting to bridge") from exc
 
         self._reference = 1
         self._local_uuid = uuid
         self._event_bus = EventBus()
 
-        async def _read_messages():
+        async def _read_messages() -> None:
             while True:
                 try:
-                    # Keep processing messages until we are disconnected or shutting down
                     await self._process_message()
-
-                except asyncio.exceptions.CancelledError:
-                    # We are shutting down. Return to stop the background task
-                    return False
-
+                except asyncio.CancelledError:
+                    return
                 except AioComfoConnectNotConnected as exc:
-                    # We have been disconnected
                     raise AioComfoConnectNotConnected("We have been disconnected") from exc
 
-        read_task = self._loop.create_task(_read_messages())
-        _LOGGER.debug("Connected to bridge %s", self.host)
+        self._read_task = self._loop.create_task(_read_messages())
+        _LOGGER.debug(f"Connected to bridge {self.host}")
+        return self._read_task
 
-        return read_task
-
-    async def _disconnect(self):
+    async def _disconnect(self) -> None:
         """Disconnect from the bridge."""
+        if self._read_task and not self._read_task.done():
+            self._read_task.cancel()
+            try:
+                await self._read_task
+            except asyncio.CancelledError:
+                pass
         if self._writer:
             self._writer.close()
             await self._writer.wait_closed()
+        self._read_task = None
 
     def is_connected(self) -> bool:
-        """Returns True if the bridge is connected."""
+        """Return True if the bridge is connected."""
         return self._writer is not None and not self._writer.is_closing()
 
-    async def _send(self, request, request_type, params: dict = None, reply: bool = True) -> Message:
-        """Sends a command and wait for a response if the request is known to return a result."""
-        # Check if we are actually connected
+    async def _send(
+        self,
+        request: type[ProtobufMessage],
+        request_type: int,
+        params: dict[str, Any] | None = None,
+        reply: bool = True,
+    ) -> Message:
+        """Send a command and optionally wait for a response.
+
+        Args:
+            request (type[ProtobufMessage]): The protobuf request class.
+            request_type (int): The request type enum value.
+            params (dict[str, Any] | None): Parameters to set on the request message.
+            reply (bool): Whether to wait for a reply.
+
+        Returns:
+            Message: The response message.
+
+        Raises:
+            AioComfoConnectNotConnected: If not connected.
+            AioComfoConnectTimeout: If waiting for a reply times out.
+        """
         if not self.is_connected():
             raise AioComfoConnectNotConnected
 
-        # Construct the message
-        cmd = zehnder_pb2.GatewayOperation()  # pylint: disable=no-member
+        cmd = zehnder_pb2.GatewayOperation()
         cmd.type = request_type
         cmd.reference = self._reference
 
         msg = request()
         if params is not None:
-            for param in params:
-                if params[param] is not None:
-                    setattr(msg, param, params[param])
+            for param, value in params.items():
+                if value is not None:
+                    setattr(msg, param, value)
 
-        message = Message(cmd, msg, self._local_uuid, self.uuid)
+        message = Message(cmd, msg, self._local_uuid or '', self.uuid)
 
-        # Create the future that will contain the response
         fut = asyncio.Future()
         if reply:
             self._event_bus.add_listener(self._reference, fut)
         else:
             fut.set_result(None)
 
-        # Send the message
-        _LOGGER.debug("TX %s", message)
+        _LOGGER.debug(f"TX {message}")
         self._writer.write(message.encode())
         await self._writer.drain()
-
-        # Increase message reference for next message
         self._reference += 1
 
         try:
@@ -177,120 +261,138 @@ class Bridge:
             raise AioComfoConnectTimeout("Timeout while waiting for response from bridge") from exc
 
     async def _read(self) -> Message:
-        # Read packet size
-        msg_len_buf = await self._reader.readexactly(4)
+        """Read a message from the bridge and decode it.
 
-        # Read rest of packet
+        Returns:
+            Message: The decoded message.
+
+        Raises:
+            ComfoConnectBadRequest: If the bridge returns a BAD_REQUEST.
+            ComfoConnectInternalError: If the bridge returns an INTERNAL_ERROR.
+            ComfoConnectNotReachable: If the bridge returns NOT_REACHABLE.
+            ComfoConnectOtherSession: If the bridge returns OTHER_SESSION.
+            ComfoConnectNotAllowed: If the bridge returns NOT_ALLOWED.
+            ComfoConnectNoResources: If the bridge returns NO_RESOURCES.
+            ComfoConnectNotExist: If the bridge returns NOT_EXIST.
+            ComfoConnectRmiError: If the bridge returns RMI_ERROR.
+        """
+        msg_len_buf = await self._reader.readexactly(4)
         msg_len = int.from_bytes(msg_len_buf, byteorder="big")
         msg_buf = await self._reader.readexactly(msg_len)
-
-        # Decode message
         message = Message.decode(msg_buf)
-
-        _LOGGER.debug("RX %s", message)
-
-        # Check status code
-        # pylint: disable=no-member
-        if message.cmd.result == zehnder_pb2.GatewayOperation.OK:
-            pass
-        elif message.cmd.result == zehnder_pb2.GatewayOperation.BAD_REQUEST:
-            raise ComfoConnectBadRequest(message)
-        elif message.cmd.result == zehnder_pb2.GatewayOperation.INTERNAL_ERROR:
-            raise ComfoConnectInternalError(message)
-        elif message.cmd.result == zehnder_pb2.GatewayOperation.NOT_REACHABLE:
-            raise ComfoConnectNotReachable(message)
-        elif message.cmd.result == zehnder_pb2.GatewayOperation.OTHER_SESSION:
-            raise ComfoConnectOtherSession(message)
-        elif message.cmd.result == zehnder_pb2.GatewayOperation.NOT_ALLOWED:
-            raise ComfoConnectNotAllowed(message)
-        elif message.cmd.result == zehnder_pb2.GatewayOperation.NO_RESOURCES:
-            raise ComfoConnectNoResources(message)
-        elif message.cmd.result == zehnder_pb2.GatewayOperation.NOT_EXIST:
-            raise ComfoConnectNotExist(message)
-        elif message.cmd.result == zehnder_pb2.GatewayOperation.RMI_ERROR:
-            raise ComfoConnectRmiError(message)
-
+        _LOGGER.debug(f"RX {message}")
+        match message.cmd.result:
+            case zehnder_pb2.GatewayOperation.OK:
+                pass
+            case zehnder_pb2.GatewayOperation.BAD_REQUEST:
+                raise ComfoConnectBadRequest(message)
+            case zehnder_pb2.GatewayOperation.INTERNAL_ERROR:
+                raise ComfoConnectInternalError(message)
+            case zehnder_pb2.GatewayOperation.NOT_REACHABLE:
+                raise ComfoConnectNotReachable(message)
+            case zehnder_pb2.GatewayOperation.OTHER_SESSION:
+                raise ComfoConnectOtherSession(message)
+            case zehnder_pb2.GatewayOperation.NOT_ALLOWED:
+                raise ComfoConnectNotAllowed(message)
+            case zehnder_pb2.GatewayOperation.NO_RESOURCES:
+                raise ComfoConnectNoResources(message)
+            case zehnder_pb2.GatewayOperation.NOT_EXIST:
+                raise ComfoConnectNotExist(message)
+            case zehnder_pb2.GatewayOperation.RMI_ERROR:
+                raise ComfoConnectRmiError(message)
         return message
 
-    async def _process_message(self):
+    async def _process_message(self) -> None:
         """Process a message from the bridge."""
         try:
             message = await self._read()
-
-            # pylint: disable=no-member
-            if message.cmd.type == zehnder_pb2.GatewayOperation.CnRpdoNotificationType:
-                if self.__sensor_callback_fn:
-                    self.__sensor_callback_fn(message.msg.pdid, int.from_bytes(message.msg.data, byteorder="little", signed=True))
-                else:
-                    _LOGGER.info("Unhandled CnRpdoNotificationType since no callback is registered.")
-
-            elif message.cmd.type == zehnder_pb2.GatewayOperation.GatewayNotificationType:
-                _LOGGER.debug("Unhandled GatewayNotificationType")
-
-            elif message.cmd.type == zehnder_pb2.GatewayOperation.CnNodeNotificationType:
-                _LOGGER.debug("Unhandled CnNodeNotificationType")
-
-            elif message.cmd.type == zehnder_pb2.GatewayOperation.CnAlarmNotificationType:
-                if self.__alarm_callback_fn:
-                    self.__alarm_callback_fn(message.msg.nodeId, message.msg)
-                else:
-                    _LOGGER.info("Unhandled CnAlarmNotificationType since no callback is registered.")
-
-            elif message.cmd.type == zehnder_pb2.GatewayOperation.CloseSessionRequestType:
-                _LOGGER.info("The Bridge has asked us to close the connection.")
-
-            elif message.cmd.reference:
-                # Emit to the event bus
-                self._event_bus.emit(message.cmd.reference, message.msg)
-
-            else:
-                _LOGGER.warning("Unhandled message type %s: %s", message.cmd.type, message)
-
-        except asyncio.exceptions.IncompleteReadError as exc:
+            match message.cmd.type:
+                case zehnder_pb2.GatewayOperation.CnRpdoNotificationType:
+                    if self.__sensor_callback_fn:
+                        self.__sensor_callback_fn(
+                            message.msg.pdid,
+                            int.from_bytes(message.msg.data, byteorder="little", signed=True),
+                        )
+                    else:
+                        _LOGGER.info("Unhandled CnRpdoNotificationType since no callback is registered.")
+                case zehnder_pb2.GatewayOperation.GatewayNotificationType:
+                    _LOGGER.debug("Unhandled GatewayNotificationType")
+                case zehnder_pb2.GatewayOperation.CnNodeNotificationType:
+                    _LOGGER.debug("Unhandled CnNodeNotificationType")
+                case zehnder_pb2.GatewayOperation.CnAlarmNotificationType:
+                    if self.__alarm_callback_fn:
+                        self.__alarm_callback_fn(message.msg.nodeId, message.msg)
+                    else:
+                        _LOGGER.info("Unhandled CnAlarmNotificationType since no callback is registered.")
+                case zehnder_pb2.GatewayOperation.CloseSessionRequestType:
+                    _LOGGER.info("The Bridge has asked us to close the connection.")
+                case _ if message.cmd.reference:
+                    self._event_bus.emit(message.cmd.reference, message.msg)
+                case _:
+                    _LOGGER.warning(f"Unhandled message type {message.cmd.type}: {message}")
+        except asyncio.IncompleteReadError as exc:
             _LOGGER.info("The connection was closed.")
             await self._disconnect()
             raise AioComfoConnectNotConnected("The connection was closed.") from exc
-
         except ComfoConnectError as exc:
             if exc.message.cmd.reference:
                 self._event_bus.emit(exc.message.cmd.reference, exc)
-
         except DecodeError as exc:
-            _LOGGER.error("Failed to decode message: %s", exc)
+            _LOGGER.error(f"Failed to decode message: {exc}")
 
+    @log_call
     def cmd_start_session(self, take_over: bool = False) -> Awaitable[Message]:
-        """Starts the session on the device by logging in and optionally disconnecting an already existing session."""
-        _LOGGER.debug("StartSessionRequest")
-        # pylint: disable=no-member
+        """Start the session on the device by logging in and optionally disconnecting an existing session.
+
+        Args:
+            take_over (bool): Whether to take over an existing session.
+
+        Returns:
+            Awaitable[Message]: Awaitable resolving to the response message.
+        """
         return self._send(
             zehnder_pb2.StartSessionRequest,
             zehnder_pb2.GatewayOperation.StartSessionRequestType,
             {"takeover": take_over},
         )
 
+    @log_call
     def cmd_close_session(self) -> Awaitable[Message]:
-        """Stops the current session."""
-        _LOGGER.debug("CloseSessionRequest")
-        # pylint: disable=no-member
+        """Stop the current session.
+
+        Returns:
+            Awaitable[Message]: Awaitable resolving to the response message.
+        """
         return self._send(
             zehnder_pb2.CloseSessionRequest,
             zehnder_pb2.GatewayOperation.CloseSessionRequestType,
-            reply=False,  # Don't wait for a reply
+            reply=False,
         )
 
+    @log_call
     def cmd_list_registered_apps(self) -> Awaitable[Message]:
-        """Returns a list of all the registered clients."""
-        _LOGGER.debug("ListRegisteredAppsRequest")
-        # pylint: disable=no-member
+        """Return a list of all registered clients.
+
+        Returns:
+            Awaitable[Message]: Awaitable resolving to the response message.
+        """
         return self._send(
             zehnder_pb2.ListRegisteredAppsRequest,
             zehnder_pb2.GatewayOperation.ListRegisteredAppsRequestType,
         )
 
+    @log_call
     def cmd_register_app(self, uuid: str, device_name: str, pin: int) -> Awaitable[Message]:
-        """Register a new app by specifying our own uuid, device_name and pin code."""
-        _LOGGER.debug("RegisterAppRequest")
-        # pylint: disable=no-member
+        """Register a new app by specifying uuid, device_name, and pin code.
+
+        Args:
+            uuid (str): The UUID of the app to register.
+            device_name (str): The device name.
+            pin (int): The pin code.
+
+        Returns:
+            Awaitable[Message]: Awaitable resolving to the response message.
+        """
         return self._send(
             zehnder_pb2.RegisterAppRequest,
             zehnder_pb2.GatewayOperation.RegisterAppRequestType,
@@ -301,73 +403,113 @@ class Bridge:
             },
         )
 
+    @log_call
     def cmd_deregister_app(self, uuid: str) -> Awaitable[Message]:
-        """Remove the specified app from the registration list."""
-        _LOGGER.debug("DeregisterAppRequest")
+        """Remove the specified app from the registration list.
+
+        Args:
+            uuid (str): The UUID of the app to deregister.
+
+        Returns:
+            Awaitable[Message]: Awaitable resolving to the response message.
+
+        Raises:
+            SelfDeregistrationError: If attempting to deregister self.
+        """
         if uuid == self._local_uuid:
             raise SelfDeregistrationError("You should not deregister yourself.")
-
-        # pylint: disable=no-member
         return self._send(
             zehnder_pb2.DeregisterAppRequest,
             zehnder_pb2.GatewayOperation.DeregisterAppRequestType,
             {"uuid": bytes.fromhex(uuid)},
         )
 
+    @log_call
     def cmd_version_request(self) -> Awaitable[Message]:
-        """Returns version information."""
-        _LOGGER.debug("VersionRequest")
-        # pylint: disable=no-member
+        """Return version information.
+
+        Returns:
+            Awaitable[Message]: Awaitable resolving to the response message.
+        """
         return self._send(
             zehnder_pb2.VersionRequest,
             zehnder_pb2.GatewayOperation.VersionRequestType,
         )
 
+    @log_call
     def cmd_time_request(self) -> Awaitable[Message]:
-        """Returns the current time on the device."""
-        _LOGGER.debug("CnTimeRequest")
-        # pylint: disable=no-member
+        """Return the current time on the device.
+
+        Returns:
+            Awaitable[Message]: Awaitable resolving to the response message.
+        """
         return self._send(
             zehnder_pb2.CnTimeRequest,
             zehnder_pb2.GatewayOperation.CnTimeRequestType,
         )
 
-    def cmd_rmi_request(self, message, node_id: int = 1) -> Awaitable[Message]:
-        """Sends a RMI request."""
-        _LOGGER.debug("CnRmiRequest")
-        # pylint: disable=no-member
+    @log_call
+    def cmd_rmi_request(self, message: bytes, node_id: int = 1) -> Awaitable[Message]:
+        """Send a Remote Method Invocation (RMI) request to a specified node.
+
+        Args:
+            message (bytes): The message payload to send with the RMI request.
+            node_id (int): The target node ID. Defaults to 1.
+
+        Returns:
+            Awaitable[Message]: Awaitable resolving to the response message.
+        """
         return self._send(
             zehnder_pb2.CnRmiRequest,
             zehnder_pb2.GatewayOperation.CnRmiRequestType,
             {"nodeId": node_id or 1, "message": message},
         )
 
-    def cmd_rpdo_request(self, pdid: int, pdo_type: int = 1, zone: int = 1, timeout=None) -> Awaitable[Message]:
-        """Register a RPDO request."""
-        _LOGGER.debug("CnRpdoRequest")
-        # pylint: disable=no-member
+    @log_call
+    def cmd_rpdo_request(
+        self, pdid: int, pdo_type: int = 1, zone: int = 1, timeout: int | None = None
+    ) -> Awaitable[Message]:
+        """Register a RPDO request.
+
+        Args:
+            pdid (int): The process data object ID.
+            pdo_type (int): The PDO type. Defaults to 1.
+            zone (int): The zone. Defaults to 1.
+            timeout (int | None): Optional timeout value.
+
+        Returns:
+            Awaitable[Message]: Awaitable resolving to the response message.
+        """
         return self._send(
             zehnder_pb2.CnRpdoRequest,
             zehnder_pb2.GatewayOperation.CnRpdoRequestType,
             {"pdid": pdid, "type": pdo_type, "zone": zone or 1, "timeout": timeout},
         )
 
+    @log_call
     def cmd_keepalive(self) -> Awaitable[Message]:
-        """Sends a keepalive."""
-        _LOGGER.debug("KeepAlive")
-        # pylint: disable=no-member
+        """Send a keepalive message.
+
+        Returns:
+            Awaitable[Message]: Awaitable resolving to the response message.
+        """
         return self._send(
             zehnder_pb2.KeepAlive,
             zehnder_pb2.GatewayOperation.KeepAliveType,
-            reply=False,  # Don't wait for a reply
+            reply=False,
         )
 
 
 class Message:
-    """A message that is sent to the bridge."""
+    """A message that is sent to the bridge.
 
-    # pylint: disable=no-member
-    REQUEST_MAPPING = {
+    Attributes:
+        cmd (ProtobufMessage): The command protobuf message.
+        msg (ProtobufMessage): The payload protobuf message.
+        src (str): The source UUID as a hex string.
+        dst (str): The destination UUID as a hex string.
+    """
+    REQUEST_MAPPING: dict[int, type[ProtobufMessage]] = {
         zehnder_pb2.GatewayOperation.SetAddressRequestType: zehnder_pb2.SetAddressRequest,
         zehnder_pb2.GatewayOperation.RegisterAppRequestType: zehnder_pb2.RegisterAppRequest,
         zehnder_pb2.GatewayOperation.StartSessionRequestType: zehnder_pb2.StartSessionRequest,
@@ -434,40 +576,58 @@ class Message:
         zehnder_pb2.GatewayOperation.CnFupResetConfirmType: zehnder_pb2.CnFupResetConfirm,
     }
 
-    def __init__(self, cmd, msg, src, dst):
+    def __init__(self, cmd: ProtobufMessage, msg: ProtobufMessage, src: str, dst: str) -> None:
         self.cmd: ProtobufMessage = cmd
         self.msg: ProtobufMessage = msg
         self.src: str = src
         self.dst: str = dst
 
-    def __str__(self):
-        return f"{self.src} -> {self.dst}: {self.cmd.SerializeToString().hex()} {self.msg.SerializeToString().hex()}\n{self.cmd}\n{self.msg}"
+    def __str__(self) -> str:
+        return (
+            f"{self.src} -> {self.dst}: "
+            f"{self.cmd.SerializeToString().hex()} {self.msg.SerializeToString().hex()}\n"
+            f"{self.cmd}\n{self.msg}"
+        )
 
     def encode(self) -> bytes:
-        """Encode the message into a byte array"""
+        """Encode the message into a byte array.
+
+        Returns:
+            bytes: The encoded message.
+        """
         cmd_buf = self.cmd.SerializeToString()
         msg_buf = self.msg.SerializeToString()
         cmd_len_buf = struct.pack(">H", len(cmd_buf))
         msg_len_buf = struct.pack(">L", 16 + 16 + 2 + len(cmd_buf) + len(msg_buf))
-
-        return msg_len_buf + bytes.fromhex(self.src) + bytes.fromhex(self.dst) + cmd_len_buf + cmd_buf + msg_buf
+        return (
+            msg_len_buf
+            + bytes.fromhex(self.src)
+            + bytes.fromhex(self.dst)
+            + cmd_len_buf
+            + cmd_buf
+            + msg_buf
+        )
 
     @classmethod
-    def decode(cls, packet) -> Message:
-        """Decode a packet from a byte buffer"""
+    def decode(cls, packet: bytes) -> Message:
+        """Decode a packet from a byte buffer.
+
+        Args:
+            packet (bytes): The packet to decode.
+
+        Returns:
+            Message: The decoded message.
+        """
         src_buf = packet[0:16]
         dst_buf = packet[16:32]
         cmd_len = struct.unpack(">H", packet[32:34])[0]
         cmd_buf = packet[34 : 34 + cmd_len]
         msg_buf = packet[34 + cmd_len :]
-
-        # Parse command
         cmd = zehnder_pb2.GatewayOperation()
         cmd.ParseFromString(cmd_buf)
-
-        # Parse message
         cmd_type = cls.REQUEST_MAPPING.get(cmd.type)
+        if cmd_type is None:
+            raise ValueError(f"Unknown command type: {cmd.type}")
         msg = cmd_type()
         msg.ParseFromString(msg_buf)
-
         return Message(cmd, msg, src_buf.hex(), dst_buf.hex())

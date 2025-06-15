@@ -24,6 +24,7 @@ class ComfoConnectError(Exception):
         Args:
             message (str): Description of the error.
         """
+        self.message = message
         super().__init__(message)
         self.message = message
 
