@@ -55,6 +55,7 @@ TIMEOUT: int = 5
 
 class SelfDeregistrationError(Exception):
     """Exception raised when trying to deregister self."""
+    pass
 
 
 class EventBus:
@@ -165,9 +166,11 @@ class Bridge:
         """
         _LOGGER.debug("Connecting to bridge %s", self.host)
         try:
-            self._reader, self._writer = await asyncio.wait_for(asyncio.open_connection(self.host, self.PORT), TIMEOUT)
+            self._reader, self._writer = await asyncio.wait_for(
+                asyncio.open_connection(self.host, self.PORT), TIMEOUT
+            )
         except asyncio.TimeoutError as exc:
-            _LOGGER.warning("Timeout while connecting to bridge %s", self.host)
+            _LOGGER.warning(f"Timeout while connecting to bridge {self.host}")
             raise AioComfoConnectTimeout("Timeout while connecting to bridge") from exc
 
         self._reference = 1
@@ -418,7 +421,7 @@ class Bridge:
             if exc.message.cmd.reference:
                 self._event_bus.emit(exc.message.cmd.reference, exc)
         except DecodeError as exc:
-            _LOGGER.error("Failed to decode message: %s", exc)
+            _LOGGER.error(f"Failed to decode message: {exc}")
 
     @log_call
     def cmd_start_session(self, take_over: bool = False) -> Awaitable[Message]:
