@@ -55,6 +55,7 @@ TIMEOUT: int = 5
 
 class SelfDeregistrationError(Exception):
     """Exception raised when trying to deregister self."""
+
     pass
 
 
@@ -64,6 +65,7 @@ class EventBus:
     Attributes:
         listeners (dict[int, set[asyncio.Future]]): Mapping of event references to sets of futures.
     """
+
     def __init__(self) -> None:
         self.listeners: dict[int, set[asyncio.Future]] = {}
 
@@ -116,6 +118,7 @@ class Bridge:
         __alarm_callback_fn (Callable | None): Callback for alarm messages.
         _loop (asyncio.AbstractEventLoop): The event loop in use.
     """
+
     PORT: int = 56747
 
     def __init__(self, host: str, uuid: str, loop: asyncio.AbstractEventLoop | None = None) -> None:
@@ -164,9 +167,7 @@ class Bridge:
         """
         _LOGGER.debug(f"Connecting to bridge {self.host}")
         try:
-            self._reader, self._writer = await asyncio.wait_for(
-                asyncio.open_connection(self.host, self.PORT), TIMEOUT
-            )
+            self._reader, self._writer = await asyncio.wait_for(asyncio.open_connection(self.host, self.PORT), TIMEOUT)
         except asyncio.TimeoutError as exc:
             _LOGGER.warning(f"Timeout while connecting to bridge {self.host}")
             raise AioComfoConnectTimeout("Timeout while connecting to bridge") from exc
@@ -227,38 +228,119 @@ class Bridge:
             AioComfoConnectNotConnected: If not connected.
             AioComfoConnectTimeout: If waiting for a reply times out.
         """
+        self._validate_connection()
+
+        message = self._build_message(request, request_type, params)
+        reply_future = self._setup_reply_handling(reply)
+
+        await self._transmit_message(message)
+
+        return await self._wait_for_response(reply_future)
+
+    def _validate_connection(self) -> None:
+        """Validate that we're connected to the bridge.
+
+        Raises:
+            AioComfoConnectNotConnected: If not connected.
+        """
         if not self.is_connected():
             raise AioComfoConnectNotConnected
 
+    def _build_message(self, request: type[ProtobufMessage], request_type: int, params: dict[str, Any] | None) -> Message:
+        """Build the complete message from request components.
+
+        Args:
+            request (type[ProtobufMessage]): The protobuf request class.
+            request_type (int): The request type enum value.
+            params (dict[str, Any] | None): Parameters to set on the request message.
+
+        Returns:
+            Message: The constructed message.
+        """
+        cmd = self._create_gateway_operation(request_type)
+        msg = self._create_request_message(request, params)
+        return Message(cmd, msg, self._local_uuid or "", self.uuid)
+
+    def _create_gateway_operation(self, request_type: int) -> zehnder_pb2.GatewayOperation:
+        """Create the gateway operation with type and reference.
+
+        Args:
+            request_type (int): The request type enum value.
+
+        Returns:
+            zehnder_pb2.GatewayOperation: The gateway operation.
+        """
         cmd = zehnder_pb2.GatewayOperation()
         cmd.type = request_type
         cmd.reference = self._reference
+        return cmd
 
+    def _create_request_message(self, request: type[ProtobufMessage], params: dict[str, Any] | None) -> ProtobufMessage:
+        """Create the request message with parameters.
+
+        Args:
+            request (type[ProtobufMessage]): The protobuf request class.
+            params (dict[str, Any] | None): Parameters to set on the request message.
+
+        Returns:
+            ProtobufMessage: The request message with parameters set.
+        """
         msg = request()
         if params is not None:
             for param, value in params.items():
                 if value is not None:
                     setattr(msg, param, value)
+        return msg
 
-        message = Message(cmd, msg, self._local_uuid or '', self.uuid)
+    def _setup_reply_handling(self, reply: bool) -> asyncio.Future[Message]:
+        """Setup future for reply handling.
 
-        fut = asyncio.Future()
+        Args:
+            reply (bool): Whether to wait for a reply.
+
+        Returns:
+            asyncio.Future[Message]: Future that will contain the reply.
+        """
+        fut: asyncio.Future[Message] = asyncio.Future()
         if reply:
             self._event_bus.add_listener(self._reference, fut)
         else:
             fut.set_result(None)
+        return fut
 
+    async def _transmit_message(self, message: Message) -> None:
+        """Transmit message over the network.
+
+        Args:
+            message (Message): The message to transmit.
+        """
         _LOGGER.debug(f"TX {message}")
         self._writer.write(message.encode())
         await self._writer.drain()
         self._reference += 1
 
+    async def _wait_for_response(self, reply_future: asyncio.Future[Message]) -> Message:
+        """Wait for response with timeout handling.
+
+        Args:
+            reply_future (asyncio.Future[Message]): Future containing the response.
+
+        Returns:
+            Message: The response message.
+
+        Raises:
+            AioComfoConnectTimeout: If waiting for response times out.
+        """
         try:
-            return await asyncio.wait_for(fut, TIMEOUT)
+            return await asyncio.wait_for(reply_future, TIMEOUT)
         except asyncio.TimeoutError as exc:
-            _LOGGER.warning("Timeout while waiting for response from bridge")
-            await self._disconnect()
+            await self._handle_timeout_error()
             raise AioComfoConnectTimeout("Timeout while waiting for response from bridge") from exc
+
+    async def _handle_timeout_error(self) -> None:
+        """Handle timeout error by logging and disconnecting."""
+        _LOGGER.warning("Timeout while waiting for response from bridge")
+        await self._disconnect()
 
     async def _read(self) -> Message:
         """Read a message from the bridge and decode it.
@@ -466,9 +548,7 @@ class Bridge:
         )
 
     @log_call
-    def cmd_rpdo_request(
-        self, pdid: int, pdo_type: int = 1, zone: int = 1, timeout: int | None = None
-    ) -> Awaitable[Message]:
+    def cmd_rpdo_request(self, pdid: int, pdo_type: int = 1, zone: int = 1, timeout: int | None = None) -> Awaitable[Message]:
         """Register a RPDO request.
 
         Args:
@@ -509,6 +589,7 @@ class Message:
         src (str): The source UUID as a hex string.
         dst (str): The destination UUID as a hex string.
     """
+
     REQUEST_MAPPING: dict[int, type[ProtobufMessage]] = {
         zehnder_pb2.GatewayOperation.SetAddressRequestType: zehnder_pb2.SetAddressRequest,
         zehnder_pb2.GatewayOperation.RegisterAppRequestType: zehnder_pb2.RegisterAppRequest,
@@ -583,11 +664,7 @@ class Message:
         self.dst: str = dst
 
     def __str__(self) -> str:
-        return (
-            f"{self.src} -> {self.dst}: "
-            f"{self.cmd.SerializeToString().hex()} {self.msg.SerializeToString().hex()}\n"
-            f"{self.cmd}\n{self.msg}"
-        )
+        return f"{self.src} -> {self.dst}: " f"{self.cmd.SerializeToString().hex()} {self.msg.SerializeToString().hex()}\n" f"{self.cmd}\n{self.msg}"
 
     def encode(self) -> bytes:
         """Encode the message into a byte array.
@@ -599,14 +676,7 @@ class Message:
         msg_buf = self.msg.SerializeToString()
         cmd_len_buf = struct.pack(">H", len(cmd_buf))
         msg_len_buf = struct.pack(">L", 16 + 16 + 2 + len(cmd_buf) + len(msg_buf))
-        return (
-            msg_len_buf
-            + bytes.fromhex(self.src)
-            + bytes.fromhex(self.dst)
-            + cmd_len_buf
-            + cmd_buf
-            + msg_buf
-        )
+        return msg_len_buf + bytes.fromhex(self.src) + bytes.fromhex(self.dst) + cmd_len_buf + cmd_buf + msg_buf
 
     @classmethod
     def decode(cls, packet: bytes) -> Message:
