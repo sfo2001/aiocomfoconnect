@@ -613,7 +613,7 @@ class ComfoConnect(Bridge):
         """Set the ComfoCool mode using the enum (AUTO, OFF)."""
         if not isinstance(mode, ComfoCoolMode):
             raise ValueError(f"Invalid ComfoCool mode: {mode}")
-        await self.cmd_rmi_request(bytes([
+        await self.cmd_rmi_request(bytestring([
             self._CMD_SET_MODE, UNIT_SCHEDULE, SUBUNIT_05, 0x01,
             0x00, 0x00, 0x00, 0x00, timeout.to_bytes(4, "little", signed=True), mode.value
         ]))
