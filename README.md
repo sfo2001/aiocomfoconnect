@@ -178,6 +178,22 @@ if __name__ == "__main__":
 
 ## Development Notes
 
+### Running Tests
+
+```shell
+# Install development dependencies
+poetry install --with dev
+
+# Run tests with coverage
+make test
+
+# Run code quality checks
+make check
+
+# Auto-format code
+make codefix
+```
+
 ### Protocol Documentation
 
 - [ComfoConnect LAN C Protocol](docs/PROTOCOL.md)
@@ -214,9 +230,9 @@ Next, you can run this image by running `docker run aiocomfoconnect`. Any args f
 
 ## Further Reading
 
-- [Protocol Details](./PROTOCOL.md)
-- [CAN/RMI Protocol](./PROTOCOL-RMI.md)
-- [PDO Sensors and Data Types](./PROTOCOL-PDO.md)
+- [Protocol Details](docs/PROTOCOL.md)
+- [CAN/RMI Protocol](docs/PROTOCOL-RMI.md)
+- [PDO Sensors and Data Types](docs/PROTOCOL-PDO.md)
 
 ## Contributing
 
