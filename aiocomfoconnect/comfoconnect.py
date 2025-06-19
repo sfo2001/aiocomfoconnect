@@ -292,6 +292,102 @@ class ComfoConnect(Bridge):
         """
         await self._disconnect()
 
+    # Generic RMI Command Helpers
+
+    async def _get_mode_value(self, subunit: int, extra_param: int = 0x01) -> int:
+        """Generic helper for GET_MODE commands.
+
+        Args:
+            subunit (int): The subunit to query
+            extra_param (int): Additional parameter (default 0x01)
+
+        Returns:
+            int: The mode value from the response
+        """
+        result = await self.cmd_rmi_request(bytes([self._CMD_GET_MODE, UNIT_SCHEDULE, subunit, extra_param]))
+        return result.message[0] if len(result.message) == 1 else result.message[-1]
+
+    async def _enable_mode(self, subunit: int, extra_param: int = 0x01) -> None:
+        """Generic helper for ENABLE_MODE commands.
+
+        Args:
+            subunit (int): The subunit to enable
+            extra_param (int): Additional parameter (default 0x01)
+        """
+        await self.cmd_rmi_request(bytes([self._CMD_ENABLE_MODE, UNIT_SCHEDULE, subunit, extra_param]))
+
+    async def _set_mode_with_timeout(self, subunit: int, mode_value: int, timeout: int, extra_param: int = 0x01) -> None:
+        """Generic helper for SET_MODE commands with timeout.
+
+        Args:
+            subunit (int): The subunit to set
+            mode_value (int): The mode value to set
+            timeout (int): Timeout value in seconds
+            extra_param (int): Additional parameter (default 0x01)
+        """
+        await self.cmd_rmi_request(
+            bytestring([self._CMD_SET_MODE, UNIT_SCHEDULE, subunit, extra_param, 0x00, 0x00, 0x00, 0x00, timeout.to_bytes(4, "little", signed=True), mode_value])
+        )
+
+    async def _set_mode_simple(self, subunit: int, mode_value: int, extra_param: int = 0x01) -> None:
+        """Generic helper for simple SET_MODE commands.
+
+        Args:
+            subunit (int): The subunit to set
+            mode_value (int): The mode value to set
+            extra_param (int): Additional parameter (default 0x01)
+        """
+        await self.cmd_rmi_request(bytes([self._CMD_SET_MODE, UNIT_SCHEDULE, subunit, extra_param, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, mode_value]))
+
+    async def _get_enum_value(self, enum_class: type[Enum], subunit: int, context: str, extra_param: int = 0x01) -> Enum:
+        """Generic helper to get enum values.
+
+        Args:
+            enum_class (type[Enum]): The enum class to convert to
+            subunit (int): The subunit to query
+            context (str): Context for error messages
+            extra_param (int): Additional parameter (default 0x01)
+
+        Returns:
+            Enum: The enum value
+
+        Raises:
+            ValueError: If the mode value is invalid
+        """
+        mode = await self._get_mode_value(subunit, extra_param)
+        try:
+            return enum_class(mode)
+        except ValueError:
+            raise ValueError(f"Invalid {context}: {mode}")
+
+    async def _get_boolean_value(self, subunit: int, extra_param: int) -> bool:
+        """Generic helper to get boolean values.
+
+        Args:
+            subunit (int): The subunit to query
+            extra_param (int): Additional parameter
+
+        Returns:
+            bool: True if mode == 1, False otherwise
+        """
+        mode = await self._get_mode_value(subunit, extra_param)
+        return mode == 1
+
+    async def _set_boolean_mode(self, subunit: int, extra_param: int, mode: bool, timeout: int, mode_value: int) -> None:
+        """Generic helper for boolean mode setting.
+
+        Args:
+            subunit (int): The subunit to set
+            extra_param (int): Additional parameter
+            mode (bool): True to activate, False to enable/disable
+            timeout (int): Timeout value in seconds
+            mode_value (int): Value to set when activating
+        """
+        if mode:
+            await self._set_mode_with_timeout(subunit, mode_value, timeout, extra_param)
+        else:
+            await self._enable_mode(subunit, extra_param)
+
     async def register_sensor(self, sensor: Sensor) -> None:
         """
         Register a sensor on the bridge.
@@ -443,12 +539,7 @@ class ComfoConnect(Bridge):
 
     async def get_mode_enum(self) -> VentilationMode:
         """Get the current ventilation mode as an enum (AUTO or MANUAL)."""
-        result = await self.cmd_rmi_request(bytes([self._CMD_GET_MODE, UNIT_SCHEDULE, SUBUNIT_08, 0x01]))
-        mode = result.message[0]
-        try:
-            return VentilationMode(mode)
-        except ValueError:
-            raise ValueError(f"Invalid mode: {mode}")
+        return await self._get_enum_value(VentilationMode, SUBUNIT_08, "mode")
 
     async def get_mode(self) -> str:
         """Backwards-compatible: Get the current ventilation mode as a string ('auto' or 'manual')."""
@@ -461,9 +552,9 @@ class ComfoConnect(Bridge):
             raise ValueError(f"Invalid mode: {mode}")
         match mode:
             case VentilationMode.AUTO:
-                await self.cmd_rmi_request(bytes([self._CMD_ENABLE_MODE, UNIT_SCHEDULE, SUBUNIT_08, 0x01]))
+                await self._enable_mode(SUBUNIT_08)
             case VentilationMode.MANUAL:
-                await self.cmd_rmi_request(bytes([self._CMD_SET_MODE, UNIT_SCHEDULE, SUBUNIT_08, 0x01, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01]))
+                await self._set_mode_simple(SUBUNIT_08, 0x01)
             case _:
                 raise ValueError(f"Invalid mode: {mode}")
 
@@ -480,12 +571,7 @@ class ComfoConnect(Bridge):
         Raises:
             ValueError: If the speed is invalid.
         """
-        result = await self.cmd_rmi_request(bytes([self._CMD_GET_MODE, UNIT_SCHEDULE, SUBUNIT_01, 0x01]))
-        speed = result.message[-1]
-        try:
-            return VentilationSpeed(speed)
-        except ValueError:
-            raise ValueError(f"Invalid speed: {speed}")
+        return await self._get_enum_value(VentilationSpeed, SUBUNIT_01, "speed")
 
     async def get_speed(self) -> str:
         """Backwards-compatible: Get the current ventilation speed as a string ('away', 'low', 'medium', 'high')."""
@@ -496,7 +582,7 @@ class ComfoConnect(Bridge):
         """Set the ventilation speed using the enum (AWAY, LOW, MEDIUM, HIGH)."""
         if not isinstance(speed, VentilationSpeed):
             raise ValueError(f"Invalid speed: {speed}")
-        await self.cmd_rmi_request(bytes([self._CMD_SET_MODE, UNIT_SCHEDULE, SUBUNIT_01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, speed.value]))
+        await self._set_mode_simple(SUBUNIT_01, speed.value)
 
     async def set_speed(self, speed: str) -> None:
         """Backwards-compatible: Set the ventilation speed using a string ('away', 'low', 'medium', 'high')."""
@@ -540,12 +626,7 @@ class ComfoConnect(Bridge):
 
     async def get_bypass_enum(self) -> BypassMode:
         """Get the bypass mode as an enum (AUTO / OPEN / CLOSED)."""
-        result = await self.cmd_rmi_request(bytes([self._CMD_GET_MODE, UNIT_SCHEDULE, SUBUNIT_02, 0x01]))
-        mode = result.message[-1]
-        try:
-            return BypassMode(mode)
-        except ValueError:
-            raise ValueError(f"Invalid bypass mode: {mode}")
+        return await self._get_enum_value(BypassMode, SUBUNIT_02, "bypass mode")
 
     async def get_bypass(self) -> str:
         """Backwards-compatible: Get the bypass mode as a string ('auto', 'open', 'closed')."""
@@ -557,11 +638,11 @@ class ComfoConnect(Bridge):
         if not isinstance(mode, BypassMode):
             raise ValueError(f"Invalid bypass mode: {mode}")
         if mode == BypassMode.AUTO:
-            await self.cmd_rmi_request(bytes([self._CMD_ENABLE_MODE, UNIT_SCHEDULE, SUBUNIT_02, 0x01]))
+            await self._enable_mode(SUBUNIT_02)
         elif mode == BypassMode.OPEN:
-            await self.cmd_rmi_request(bytestring([self._CMD_SET_MODE, UNIT_SCHEDULE, SUBUNIT_02, 0x01, 0x00, 0x00, 0x00, 0x00, timeout.to_bytes(4, "little", signed=True), 0x01]))
+            await self._set_mode_with_timeout(SUBUNIT_02, 0x01, timeout)
         elif mode == BypassMode.CLOSED:
-            await self.cmd_rmi_request(bytestring([self._CMD_SET_MODE, UNIT_SCHEDULE, SUBUNIT_02, 0x01, 0x00, 0x00, 0x00, 0x00, timeout.to_bytes(4, "little", signed=True), 0x02]))
+            await self._set_mode_with_timeout(SUBUNIT_02, 0x02, timeout)
         else:
             raise ValueError(f"Invalid bypass mode: {mode}")
 
@@ -633,33 +714,19 @@ class ComfoConnect(Bridge):
 
     async def get_boost(self) -> bool:
         """Get boost mode."""
-        result = await self.cmd_rmi_request(bytes([self._CMD_GET_MODE, UNIT_SCHEDULE, SUBUNIT_01, 0x06]))
-        # 0000000000580200000000000003 = not active
-        # 0100000000580200005602000003 = active
-        mode = result.message[0]
-        return mode == 1
+        return await self._get_boolean_value(SUBUNIT_01, 0x06)
 
     async def set_boost(self, mode: bool, timeout: int = 3600) -> None:
         """Activate boost mode."""
-        if mode:
-            await self.cmd_rmi_request(bytestring([self._CMD_SET_MODE, UNIT_SCHEDULE, SUBUNIT_01, 0x06, 0x00, 0x00, 0x00, 0x00, timeout.to_bytes(4, "little", signed=True), 0x03]))
-        else:
-            await self.cmd_rmi_request(bytes([self._CMD_ENABLE_MODE, UNIT_SCHEDULE, SUBUNIT_01, 0x06]))
+        await self._set_boolean_mode(SUBUNIT_01, 0x06, mode, timeout, 0x03)
 
     async def get_away(self) -> bool:
         """Get away mode."""
-        result = await self.cmd_rmi_request(bytes([self._CMD_GET_MODE, UNIT_SCHEDULE, SUBUNIT_01, 0x0B]))
-        # 0000000000b00400000000000000 = not active
-        # 0100000000550200005302000000 = active
-        mode = result.message[0]
-        return mode == 1
+        return await self._get_boolean_value(SUBUNIT_01, 0x0B)
 
     async def set_away(self, mode: bool, timeout: int = 3600) -> None:
         """Activate away mode."""
-        if mode:
-            await self.cmd_rmi_request(bytestring([self._CMD_SET_MODE, UNIT_SCHEDULE, SUBUNIT_01, 0x0B, 0x00, 0x00, 0x00, 0x00, timeout.to_bytes(4, "little", signed=True), 0x00]))
-        else:
-            await self.cmd_rmi_request(bytes([self._CMD_ENABLE_MODE, UNIT_SCHEDULE, SUBUNIT_01, 0x0B]))
+        await self._set_boolean_mode(SUBUNIT_01, 0x0B, mode, timeout, 0x00)
 
     async def get_comfocool_mode_enum(self) -> ComfoCoolMode:
         """Get the current ComfoCool mode as an enum.
@@ -669,12 +736,7 @@ class ComfoConnect(Bridge):
         Raises:
             ValueError: If the mode is invalid.
         """
-        result = await self.cmd_rmi_request(bytes([self._CMD_GET_MODE, UNIT_SCHEDULE, SUBUNIT_05, 0x01]))
-        mode = result.message[0]
-        try:
-            return ComfoCoolMode(mode)
-        except ValueError:
-            raise ValueError(f"Invalid ComfoCool mode: {mode}")
+        return await self._get_enum_value(ComfoCoolMode, SUBUNIT_05, "ComfoCool mode")
 
     async def get_comfocool_mode(self) -> str:
         """Backwards-compatible: Get the current ComfoCool mode as a string ('auto', 'off')."""
@@ -685,9 +747,7 @@ class ComfoConnect(Bridge):
         """Set the ComfoCool mode using the enum (AUTO, OFF)."""
         if not isinstance(mode, ComfoCoolMode):
             raise ValueError(f"Invalid ComfoCool mode: {mode}")
-        await self.cmd_rmi_request(
-            bytestring([self._CMD_SET_MODE, UNIT_SCHEDULE, SUBUNIT_05, 0x01, 0x00, 0x00, 0x00, 0x00, timeout.to_bytes(4, "little", signed=True), mode.value])
-        )
+        await self._set_mode_with_timeout(SUBUNIT_05, mode.value, timeout)
 
     async def set_comfocool_mode(self, mode: str, timeout: int = -1) -> None:
         """Backwards-compatible: Set the ComfoCool mode using a string ('auto', 'off')."""
@@ -702,13 +762,7 @@ class ComfoConnect(Bridge):
         Raises:
             ValueError: If the received mode value is not recognized.
         """
-        result = await self.cmd_rmi_request(bytes([self._CMD_GET_MODE, UNIT_SCHEDULE, SUBUNIT_03, 0x01]))
-
-        mode = result.message[-1]
-        try:
-            return VentilationTemperatureProfile(mode)
-        except ValueError:
-            raise ValueError(f"Invalid mode: {mode}")
+        return await self._get_enum_value(VentilationTemperatureProfile, SUBUNIT_03, "temperature profile")
 
     async def get_temperature_profile(self) -> str:
         """Backwards-compatible: Get the temperature profile as a string ('warm', 'normal', 'cool')."""
@@ -719,9 +773,7 @@ class ComfoConnect(Bridge):
         """Set the temperature profile (warm / normal / cool)."""
         if not isinstance(profile, VentilationTemperatureProfile):
             raise ValueError(f"Invalid profile: {profile}")
-        await self.cmd_rmi_request(
-            bytestring([self._CMD_SET_MODE, UNIT_SCHEDULE, SUBUNIT_03, 0x01, 0x00, 0x00, 0x00, 0x00, timeout.to_bytes(4, "little", signed=True), profile.value])
-        )
+        await self._set_mode_with_timeout(SUBUNIT_03, profile.value, timeout)
 
     async def set_temperature_profile(self, profile: str, timeout: int = -1) -> None:
         """Backwards-compatible: Set the temperature profile using a string ('warm', 'normal', 'cool')."""
