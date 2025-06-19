@@ -11,7 +11,7 @@ codefix:
 	@poetry run black aiocomfoconnect/*.py
 
 test:
-	@poetry run pytest
+	@poetry run pytest --cov=aiocomfoconnect --cov-report=term --cov-report=xml
 
 build:
 	docker build -t aiocomfoconnect .

@@ -16,7 +16,6 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ ubuntu-latest ]
         python-version: [ "3.10", "3.11", "3.12", "3.13" ]
     steps:
       - name: Check out code
@@ -41,13 +40,19 @@ jobs:
       - name: Install dependencies (with dev)
         run: poetry install --with dev --no-interaction
 
-      - name: Run linting and checks (if Makefile exists)
+      - name: Run code quality checks
         run: |
-          if [ -f Makefile ] && grep -q '^check:' Makefile; then
-            make check
-          else
-            echo "No Makefile or check target, skipping linting."
-          fi
+          echo "Running pylint..."
+          make check-pylint
+          echo "Running black format check..."
+          make check-black
 
-      - name: Run tests
-        run: poetry run pytest
+      - name: Run tests with coverage
+        run: make test
+
+      - name: Upload coverage to Codecov (optional)
+        if: matrix.python-version == '3.12'
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./coverage.xml
+          fail_ci_if_error: false
