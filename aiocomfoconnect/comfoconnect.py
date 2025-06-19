@@ -16,6 +16,7 @@ Example:
 
 import asyncio
 import logging
+from enum import Enum
 from typing import Callable, List, Any
 
 from aiocomfoconnect import Bridge
@@ -55,6 +56,40 @@ from aiocomfoconnect.util import bytearray_to_bits, bytestring, encode_pdo_value
 _LOGGER = logging.getLogger(__name__)
 
 
+def _convert_to_enum(value: str | int, enum_class: type[Enum], context: str) -> Enum:
+    """Convert string or int value to enum.
+
+    Args:
+        value: The value to convert (string name or int value)
+        enum_class: The enum class to convert to
+        context: Context for error message (e.g., "mode", "speed")
+
+    Returns:
+        The enum value
+
+    Raises:
+        ValueError: If value cannot be converted to enum
+    """
+    # Handle int values directly
+    if isinstance(value, int):
+        try:
+            return enum_class(value)
+        except ValueError:
+            raise ValueError(f"Invalid {context}: {value}")
+
+    # Handle string values
+    value_str = str(value).strip().upper()
+    try:
+        # Try by name first (e.g., 'AUTO' -> VentilationMode.AUTO)
+        return enum_class[value_str]
+    except KeyError:
+        try:
+            # Try by int value (e.g., '0' -> VentilationMode(0))
+            return enum_class(int(value))
+        except (ValueError, TypeError):
+            raise ValueError(f"Invalid {context}: {value}")
+
+
 class ComfoConnect(Bridge):
     """
     Provide an abstraction layer over the ComfoConnect LAN C API.
@@ -81,7 +116,15 @@ class ComfoConnect(Bridge):
     _CMD_SET_MODE = 0x84
     _CMD_ENABLE_MODE = 0x85
 
-    def __init__(self, host: str, uuid: str, loop: asyncio.AbstractEventLoop | None = None, sensor_callback: Callable[[Sensor, Any], None] | None = None, alarm_callback: Callable[[int, Any], None] | None = None, sensor_delay: int = 2) -> None:
+    def __init__(
+        self,
+        host: str,
+        uuid: str,
+        loop: asyncio.AbstractEventLoop | None = None,
+        sensor_callback: Callable[[Sensor, Any], None] | None = None,
+        alarm_callback: Callable[[int, Any], None] | None = None,
+        sensor_delay: int = 2,
+    ) -> None:
         """
         Initialize the ComfoConnect class.
 
@@ -133,7 +176,7 @@ class ComfoConnect(Bridge):
         Args:
             uuid (str): The UUID to use for registration.
             connected (asyncio.Future[bool]): Future to signal when initially connected.
-        
+
         Returns:
             asyncio.Task[None]: The reconnection task.
         """
@@ -183,19 +226,19 @@ class ComfoConnect(Bridge):
         """
         read_task = await self._connect(uuid)
         await self.cmd_start_session(True)
-        
+
         await self._setup_sensor_buffering()
         await self._reregister_sensors()
-        
+
         self._mark_connected_if_needed(connected)
         await read_task
-        
+
         return read_task.result() is False  # False result means shutdown
 
     async def _setup_sensor_buffering(self) -> None:
         """
         Setup sensor value buffering to work around bridge bug.
-        
+
         This is to work around a bug where the bridge sends invalid sensor values when connecting.
         """
         if self.sensor_delay:
@@ -283,14 +326,7 @@ class ComfoConnect(Bridge):
         """
         return await self.get_single_property(prop.unit, prop.subunit, prop.property_id, prop.property_type, node_id=node_id)
 
-    async def get_single_property(
-        self,
-        unit: int,
-        subunit: int,
-        property_id: int,
-        property_type: int | None = None,
-        node_id: int = 1
-    ) -> Any:
+    async def get_single_property(self, unit: int, subunit: int, property_id: int, property_type: int | None = None, node_id: int = 1) -> Any:
         """Get a property and convert to the correct type.
 
         Args:
@@ -401,8 +437,8 @@ class ComfoConnect(Bridge):
         if self._alarm_callback_fn is None:
             return
 
-        error_messages = ERRORS_140 if getattr(alarm, 'swProgramVersion', 0) <= 3222278144 else ERRORS
-        errors = {bit: error_messages[bit] for bit in bytearray_to_bits(getattr(alarm, 'errors', b''))}
+        error_messages = ERRORS_140 if getattr(alarm, "swProgramVersion", 0) <= 3222278144 else ERRORS
+        errors = {bit: error_messages[bit] for bit in bytearray_to_bits(getattr(alarm, "errors", b""))}
         self._alarm_callback_fn(node_id, errors)
 
     async def get_mode_enum(self) -> VentilationMode:
@@ -433,13 +469,7 @@ class ComfoConnect(Bridge):
 
     async def set_mode(self, mode: str) -> None:
         """Backwards-compatible: Set the ventilation mode using a string ('auto' or 'manual')."""
-        try:
-            mode_enum = VentilationMode[mode.strip().upper()]
-        except KeyError:
-            try:
-                mode_enum = VentilationMode(int(mode))
-            except Exception:
-                raise ValueError(f"Invalid mode: {mode}")
+        mode_enum = _convert_to_enum(mode, VentilationMode, "mode")
         await self.set_mode_enum(mode_enum)
 
     async def get_speed_enum(self) -> VentilationSpeed:
@@ -466,20 +496,11 @@ class ComfoConnect(Bridge):
         """Set the ventilation speed using the enum (AWAY, LOW, MEDIUM, HIGH)."""
         if not isinstance(speed, VentilationSpeed):
             raise ValueError(f"Invalid speed: {speed}")
-        await self.cmd_rmi_request(bytes([
-            self._CMD_SET_MODE, UNIT_SCHEDULE, SUBUNIT_01, 0x01,
-            0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, speed.value
-        ]))
+        await self.cmd_rmi_request(bytes([self._CMD_SET_MODE, UNIT_SCHEDULE, SUBUNIT_01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, speed.value]))
 
     async def set_speed(self, speed: str) -> None:
         """Backwards-compatible: Set the ventilation speed using a string ('away', 'low', 'medium', 'high')."""
-        try:
-            speed_enum = VentilationSpeed[speed.strip().upper()]
-        except KeyError:
-            try:
-                speed_enum = VentilationSpeed(int(speed))
-            except Exception:
-                raise ValueError(f"Invalid speed: {speed}")
+        speed_enum = _convert_to_enum(speed, VentilationSpeed, "speed")
         await self.set_speed_enum(speed_enum)
 
     async def get_flow_for_speed_enum(self, speed: AirflowSpeed) -> int:
@@ -497,13 +518,7 @@ class ComfoConnect(Bridge):
         """
         Backwards-compatible: Get the targeted airflow in m³/h for the given speed as a string ('away', 'low', 'medium', 'high').
         """
-        try:
-            speed_enum = AirflowSpeed[speed.strip().upper()]
-        except KeyError:
-            try:
-                speed_enum = AirflowSpeed(int(speed))
-            except Exception:
-                raise ValueError(f"Invalid airflow speed: {speed}")
+        speed_enum = _convert_to_enum(speed, AirflowSpeed, "airflow speed")
         return await self.get_flow_for_speed_enum(speed_enum)
 
     async def set_flow_for_speed_enum(self, speed: AirflowSpeed, desired_flow: int):
@@ -520,13 +535,7 @@ class ComfoConnect(Bridge):
         """
         Backwards-compatible: Set the targeted airflow in m³/h for the given speed as a string ('away', 'low', 'medium', 'high').
         """
-        try:
-            speed_enum = AirflowSpeed[speed.strip().upper()]
-        except KeyError:
-            try:
-                speed_enum = AirflowSpeed(int(speed))
-            except Exception:
-                raise ValueError(f"Invalid airflow speed: {speed}")
+        speed_enum = _convert_to_enum(speed, AirflowSpeed, "airflow speed")
         await self.set_flow_for_speed_enum(speed_enum, desired_flow)
 
     async def get_bypass_enum(self) -> BypassMode:
@@ -550,13 +559,9 @@ class ComfoConnect(Bridge):
         if mode == BypassMode.AUTO:
             await self.cmd_rmi_request(bytes([self._CMD_ENABLE_MODE, UNIT_SCHEDULE, SUBUNIT_02, 0x01]))
         elif mode == BypassMode.OPEN:
-            await self.cmd_rmi_request(bytestring([
-                self._CMD_SET_MODE, UNIT_SCHEDULE, SUBUNIT_02, 0x01, 0x00, 0x00, 0x00, 0x00, timeout.to_bytes(4, "little", signed=True), 0x01
-            ]))
+            await self.cmd_rmi_request(bytestring([self._CMD_SET_MODE, UNIT_SCHEDULE, SUBUNIT_02, 0x01, 0x00, 0x00, 0x00, 0x00, timeout.to_bytes(4, "little", signed=True), 0x01]))
         elif mode == BypassMode.CLOSED:
-            await self.cmd_rmi_request(bytestring([
-                self._CMD_SET_MODE, UNIT_SCHEDULE, SUBUNIT_02, 0x01, 0x00, 0x00, 0x00, 0x00, timeout.to_bytes(4, "little", signed=True), 0x02
-            ]))
+            await self.cmd_rmi_request(bytestring([self._CMD_SET_MODE, UNIT_SCHEDULE, SUBUNIT_02, 0x01, 0x00, 0x00, 0x00, 0x00, timeout.to_bytes(4, "little", signed=True), 0x02]))
         else:
             raise ValueError(f"Invalid bypass mode: {mode}")
 
@@ -570,13 +575,7 @@ class ComfoConnect(Bridge):
         elif mode_str == "off":
             _LOGGER.warning("Bypass mode 'off' is deprecated, use 'closed' instead.")
             mode_str = "closed"
-        try:
-            mode_enum = BypassMode[mode_str.upper()]
-        except KeyError:
-            try:
-                mode_enum = BypassMode(int(mode))
-            except Exception:
-                raise ValueError(f"Invalid bypass mode: {mode}")
+        mode_enum = _convert_to_enum(mode_str, BypassMode, "bypass mode")
         await self.set_bypass_enum(mode_enum, timeout)
 
     async def get_balance_mode_enum(self) -> VentilationBalance:
@@ -615,30 +614,21 @@ class ComfoConnect(Bridge):
                 await self.cmd_rmi_request(bytes([self._CMD_ENABLE_MODE, UNIT_SCHEDULE, SUBUNIT_06, 0x01]))
                 await self.cmd_rmi_request(bytes([self._CMD_ENABLE_MODE, UNIT_SCHEDULE, SUBUNIT_07, 0x01]))
             case VentilationBalance.SUPPLY_ONLY:
-                await self.cmd_rmi_request(bytestring([
-                    self._CMD_SET_MODE, UNIT_SCHEDULE, SUBUNIT_06, 0x01,
-                    0x00, 0x00, 0x00, 0x00, timeout.to_bytes(4, "little", signed=True), 0x01
-                ]))
+                await self.cmd_rmi_request(
+                    bytestring([self._CMD_SET_MODE, UNIT_SCHEDULE, SUBUNIT_06, 0x01, 0x00, 0x00, 0x00, 0x00, timeout.to_bytes(4, "little", signed=True), 0x01])
+                )
                 await self.cmd_rmi_request(bytes([self._CMD_ENABLE_MODE, UNIT_SCHEDULE, SUBUNIT_07, 0x01]))
             case VentilationBalance.EXHAUST_ONLY:
                 await self.cmd_rmi_request(bytes([self._CMD_ENABLE_MODE, UNIT_SCHEDULE, SUBUNIT_06, 0x01]))
-                await self.cmd_rmi_request(bytestring([
-                    self._CMD_SET_MODE, UNIT_SCHEDULE, SUBUNIT_07, 0x01,
-                    0x00, 0x00, 0x00, 0x00, timeout.to_bytes(4, "little", signed=True), 0x01
-                ]))
+                await self.cmd_rmi_request(
+                    bytestring([self._CMD_SET_MODE, UNIT_SCHEDULE, SUBUNIT_07, 0x01, 0x00, 0x00, 0x00, 0x00, timeout.to_bytes(4, "little", signed=True), 0x01])
+                )
             case _:
                 raise ValueError(f"Invalid mode: {mode}")
 
     async def set_balance_mode(self, mode: str, timeout: int = -1) -> None:
         """Backwards-compatible: Set the ventilation balance mode using a string ('balance', 'supply_only', 'exhaust_only')."""
-        try:
-            mode_enum = VentilationBalance[mode.strip().upper()]
-        except KeyError:
-            try:
-                # Try by int value (if user passes 0, 1, 2, etc.)
-                mode_enum = VentilationBalance(int(mode))
-            except Exception:
-                raise ValueError(f"Invalid balance mode: {mode}")
+        mode_enum = _convert_to_enum(mode, VentilationBalance, "balance mode")
         await self.set_balance_mode_enum(mode_enum, timeout)
 
     async def get_boost(self) -> bool:
@@ -695,20 +685,13 @@ class ComfoConnect(Bridge):
         """Set the ComfoCool mode using the enum (AUTO, OFF)."""
         if not isinstance(mode, ComfoCoolMode):
             raise ValueError(f"Invalid ComfoCool mode: {mode}")
-        await self.cmd_rmi_request(bytestring([
-            self._CMD_SET_MODE, UNIT_SCHEDULE, SUBUNIT_05, 0x01,
-            0x00, 0x00, 0x00, 0x00, timeout.to_bytes(4, "little", signed=True), mode.value
-        ]))
+        await self.cmd_rmi_request(
+            bytestring([self._CMD_SET_MODE, UNIT_SCHEDULE, SUBUNIT_05, 0x01, 0x00, 0x00, 0x00, 0x00, timeout.to_bytes(4, "little", signed=True), mode.value])
+        )
 
     async def set_comfocool_mode(self, mode: str, timeout: int = -1) -> None:
         """Backwards-compatible: Set the ComfoCool mode using a string ('auto', 'off')."""
-        try:
-            mode_enum = ComfoCoolMode[mode.strip().upper()]
-        except KeyError:
-            try:
-                mode_enum = ComfoCoolMode(int(mode))
-            except Exception:
-                raise ValueError(f"Invalid ComfoCool mode: {mode}")
+        mode_enum = _convert_to_enum(mode, ComfoCoolMode, "ComfoCool mode")
         await self.set_comfocool_mode_enum(mode_enum, timeout)
 
     async def get_temperature_profile_enum(self) -> VentilationTemperatureProfile:
@@ -720,7 +703,7 @@ class ComfoConnect(Bridge):
             ValueError: If the received mode value is not recognized.
         """
         result = await self.cmd_rmi_request(bytes([self._CMD_GET_MODE, UNIT_SCHEDULE, SUBUNIT_03, 0x01]))
-    
+
         mode = result.message[-1]
         try:
             return VentilationTemperatureProfile(mode)
@@ -736,27 +719,13 @@ class ComfoConnect(Bridge):
         """Set the temperature profile (warm / normal / cool)."""
         if not isinstance(profile, VentilationTemperatureProfile):
             raise ValueError(f"Invalid profile: {profile}")
-        await self.cmd_rmi_request(bytestring([
-            self._CMD_SET_MODE,
-            UNIT_SCHEDULE,
-            SUBUNIT_03,
-            0x01,
-            0x00, 0x00, 0x00, 0x00,
-            timeout.to_bytes(4, "little", signed=True),
-            profile.value
-        ]))
+        await self.cmd_rmi_request(
+            bytestring([self._CMD_SET_MODE, UNIT_SCHEDULE, SUBUNIT_03, 0x01, 0x00, 0x00, 0x00, 0x00, timeout.to_bytes(4, "little", signed=True), profile.value])
+        )
 
     async def set_temperature_profile(self, profile: str, timeout: int = -1) -> None:
         """Backwards-compatible: Set the temperature profile using a string ('warm', 'normal', 'cool')."""
-        try:
-            # Try by name (string)
-            enum_profile = VentilationTemperatureProfile[profile.strip().upper()]
-        except KeyError:
-            try:
-                # Try by int value
-                enum_profile = VentilationTemperatureProfile(int(profile))
-            except Exception:    
-                raise ValueError(f"Invalid temperature profile: {profile}")
+        enum_profile = _convert_to_enum(profile, VentilationTemperatureProfile, "temperature profile")
         await self.set_temperature_profile_enum(enum_profile, timeout)
 
     async def get_sensor_ventmode_temperature_passive_enum(self) -> VentilationSetting:
@@ -781,13 +750,7 @@ class ComfoConnect(Bridge):
 
     async def set_sensor_ventmode_temperature_passive(self, mode: str) -> None:
         """Backwards-compatible: Set sensor based ventilation mode - temperature passive using string ('auto', 'on', 'off')."""
-        try:
-            mode_enum = VentilationSetting[mode.strip().upper()]
-        except KeyError:
-            try:
-                mode_enum = VentilationSetting(int(mode))
-            except Exception:
-                raise ValueError(f"Invalid mode: {mode}")
+        mode_enum = _convert_to_enum(mode, VentilationSetting, "mode")
         await self.set_sensor_ventmode_temperature_passive_enum(mode_enum)
 
     async def get_sensor_ventmode_humidity_comfort_enum(self) -> VentilationSetting:
@@ -812,13 +775,7 @@ class ComfoConnect(Bridge):
 
     async def set_sensor_ventmode_humidity_comfort(self, mode: str) -> None:
         """Backwards-compatible: Set sensor based ventilation mode - humidity comfort using string ('auto', 'on', 'off')."""
-        try:
-            mode_enum = VentilationSetting[mode.strip().upper()]
-        except KeyError:
-            try:
-                mode_enum = VentilationSetting(int(mode))
-            except Exception:
-                raise ValueError(f"Invalid mode: {mode}")
+        mode_enum = _convert_to_enum(mode, VentilationSetting, "mode")
         await self.set_sensor_ventmode_humidity_comfort_enum(mode_enum)
 
     async def get_sensor_ventmode_humidity_protection_enum(self) -> VentilationSetting:
@@ -843,11 +800,5 @@ class ComfoConnect(Bridge):
 
     async def set_sensor_ventmode_humidity_protection(self, mode: str) -> None:
         """Backwards-compatible: Set sensor based ventilation mode - humidity protection using string ('auto', 'on', 'off')."""
-        try:
-            mode_enum = VentilationSetting[mode.strip().upper()]
-        except KeyError:
-            try:
-                mode_enum = VentilationSetting(int(mode))
-            except Exception:
-                raise ValueError(f"Invalid mode: {mode}")
+        mode_enum = _convert_to_enum(mode, VentilationSetting, "mode")
         await self.set_sensor_ventmode_humidity_protection_enum(mode_enum)
