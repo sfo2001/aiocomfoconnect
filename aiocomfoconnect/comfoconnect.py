@@ -637,14 +637,13 @@ class ComfoConnect(Bridge):
         """Set the bypass mode using the enum (AUTO / OPEN / CLOSED)."""
         if not isinstance(mode, BypassMode):
             raise ValueError(f"Invalid bypass mode: {mode}")
-        if mode == BypassMode.AUTO:
-            await self._enable_mode(SUBUNIT_02)
-        elif mode == BypassMode.OPEN:
-            await self._set_mode_with_timeout(SUBUNIT_02, 0x01, timeout)
-        elif mode == BypassMode.CLOSED:
-            await self._set_mode_with_timeout(SUBUNIT_02, 0x02, timeout)
-        else:
-            raise ValueError(f"Invalid bypass mode: {mode}")
+        match mode:
+            case BypassMode.AUTO:
+                await self._enable_mode(SUBUNIT_02)
+            case BypassMode.OPEN:
+                await self._set_mode_with_timeout(SUBUNIT_02, 0x01, timeout)
+            case BypassMode.CLOSED:
+                await self._set_mode_with_timeout(SUBUNIT_02, 0x02, timeout)
 
     async def set_bypass(self, mode: str, timeout: int = -1) -> None:
         """Backwards-compatible: Set the bypass mode using a string ('auto', 'open', 'closed').
