@@ -14,6 +14,12 @@ env/
 build/
 dist/
 
+# Test cache and coverage files
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+
 # uv cache
 .uv-cache/
 
