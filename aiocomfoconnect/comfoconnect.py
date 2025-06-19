@@ -16,8 +16,7 @@ Example:
 
 import asyncio
 import logging
-from asyncio import Future
-from typing import Callable, List, Literal, Any
+from typing import Callable, List, Any
 
 from aiocomfoconnect import Bridge
 from aiocomfoconnect.const import (
@@ -123,43 +122,126 @@ class ComfoConnect(Bridge):
             uuid (str): The UUID to use for registration.
         """
         connected: asyncio.Future[bool] = asyncio.Future()
-
-        async def _reconnect_loop():
-            while True:
-                try:
-                    read_task = await self._connect(uuid)
-                    await self.cmd_start_session(True)
-
-                    # Wait for a specified amount of seconds to buffer sensor values.
-                    # This is to work around a bug where the bridge sends invalid sensor values when connecting.
-                    if self.sensor_delay:
-                        _LOGGER.debug("Holding sensors for %s second(s)", self.sensor_delay)
-                        self._sensors_values = {}
-                        self._sensor_hold = self._loop.call_later(self.sensor_delay, self._unhold_sensors)
-
-                    # Register the sensors again (in case we lost the connection)
-                    for sensor in self._sensors.values():
-                        await self.cmd_rpdo_request(sensor.id, sensor.type)
-                    if not connected.done():
-                        connected.set_result(True)
-                    await read_task
-                    if read_task.result() is False:
-                        # We are shutting down.
-                        return
-                except AioComfoConnectTimeout:
-                    _LOGGER.info("Could not reconnect. Retrying after 5 seconds.")
-                    await asyncio.sleep(5)
-                except AioComfoConnectNotConnected:
-                    _LOGGER.info("We got disconnected. Reconnecting.")
-                except ComfoConnectNotAllowed as exception:
-                    # Passthrough exception if not allowed (because not registered uuid for example )
-                    connected.set_exception(exception)
-                    return
-
-        reconnect_task = self._loop.create_task(_reconnect_loop())
-        self._tasks.add(reconnect_task)
-        reconnect_task.add_done_callback(self._tasks.discard)
+        reconnect_task = self._create_reconnection_task(uuid, connected)
+        self._register_task(reconnect_task)
         await connected
+
+    def _create_reconnection_task(self, uuid: str, connected: asyncio.Future[bool]) -> asyncio.Task[None]:
+        """
+        Create and return the reconnection task.
+
+        Args:
+            uuid (str): The UUID to use for registration.
+            connected (asyncio.Future[bool]): Future to signal when initially connected.
+        
+        Returns:
+            asyncio.Task[None]: The reconnection task.
+        """
+        return self._loop.create_task(self._reconnection_loop(uuid, connected))
+
+    def _register_task(self, task: asyncio.Task[None]) -> None:
+        """
+        Register a task for lifecycle management.
+
+        Args:
+            task (asyncio.Task[None]): The task to register.
+        """
+        self._tasks.add(task)
+        task.add_done_callback(self._tasks.discard)
+
+    async def _reconnection_loop(self, uuid: str, connected: asyncio.Future[bool]) -> None:
+        """
+        Handle reconnection attempts with retry logic.
+
+        Args:
+            uuid (str): The UUID to use for registration.
+            connected (asyncio.Future[bool]): Future to signal when initially connected.
+        """
+        while True:
+            try:
+                should_shutdown = await self._establish_connection_session(uuid, connected)
+                if should_shutdown:
+                    return
+            except AioComfoConnectTimeout:
+                await self._handle_connection_timeout()
+            except AioComfoConnectNotConnected:
+                self._handle_disconnection()
+            except ComfoConnectNotAllowed as exception:
+                self._handle_not_allowed_exception(connected, exception)
+                return
+
+    async def _establish_connection_session(self, uuid: str, connected: asyncio.Future[bool]) -> bool:
+        """
+        Establish connection and setup session.
+
+        Args:
+            uuid (str): The UUID to use for registration.
+            connected (asyncio.Future[bool]): Future to signal when initially connected.
+
+        Returns:
+            bool: True if should shutdown, False to continue reconnection loop.
+        """
+        read_task = await self._connect(uuid)
+        await self.cmd_start_session(True)
+        
+        await self._setup_sensor_buffering()
+        await self._reregister_sensors()
+        
+        self._mark_connected_if_needed(connected)
+        await read_task
+        
+        return read_task.result() is False  # False result means shutdown
+
+    async def _setup_sensor_buffering(self) -> None:
+        """
+        Setup sensor value buffering to work around bridge bug.
+        
+        This is to work around a bug where the bridge sends invalid sensor values when connecting.
+        """
+        if self.sensor_delay:
+            _LOGGER.debug("Holding sensors for %s second(s)", self.sensor_delay)
+            self._sensors_values = {}
+            self._sensor_hold = self._loop.call_later(self.sensor_delay, self._unhold_sensors)
+
+    async def _reregister_sensors(self) -> None:
+        """
+        Re-register all sensors (in case we lost the connection).
+        """
+        for sensor in self._sensors.values():
+            await self.cmd_rpdo_request(sensor.id, sensor.type)
+
+    def _mark_connected_if_needed(self, connected: asyncio.Future[bool]) -> None:
+        """
+        Mark the connection as established if not already done.
+
+        Args:
+            connected (asyncio.Future[bool]): Future to signal when initially connected.
+        """
+        if not connected.done():
+            connected.set_result(True)
+
+    async def _handle_connection_timeout(self) -> None:
+        """
+        Handle connection timeout by waiting before retry.
+        """
+        _LOGGER.info("Could not reconnect. Retrying after 5 seconds.")
+        await asyncio.sleep(5)
+
+    def _handle_disconnection(self) -> None:
+        """
+        Handle disconnection event.
+        """
+        _LOGGER.info("We got disconnected. Reconnecting.")
+
+    def _handle_not_allowed_exception(self, connected: asyncio.Future[bool], exception: ComfoConnectNotAllowed) -> None:
+        """
+        Handle not allowed exception by propagating it.
+
+        Args:
+            connected (asyncio.Future[bool]): Future to signal connection result.
+            exception (ComfoConnectNotAllowed): The exception to propagate.
+        """
+        connected.set_exception(exception)
 
     async def disconnect(self) -> None:
         """
