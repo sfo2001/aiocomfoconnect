@@ -231,6 +231,7 @@ class VentilationBalance(Enum):
 
 
 class VentilationTemperatureProfile(IntEnum):
+    """Enum representing ventilation temperature profiles."""
     NORMAL = 0  # 0100000000ffffffffffffffff00 = normal
     COOL = 1    # 0100000000ffffffffffffffff01 = cool
     WARM = 2    # 0100000000ffffffffffffffff02 = warm
@@ -240,6 +241,7 @@ class VentilationTemperatureProfile(IntEnum):
 
 
 class VentilationSpeed(IntEnum):
+    """Enum representing ventilation speed levels."""
     AWAY = 0    # 0100000000ffffffffffffffff00 = away
     LOW = 1     # 0100000000ffffffffffffffff01 = low
     MEDIUM = 2  # 0100000000ffffffffffffffff02 = medium
@@ -250,6 +252,7 @@ class VentilationSpeed(IntEnum):
 
 
 class ComfoCoolMode(IntEnum):
+    """Enum representing ComfoCool operating modes."""
     AUTO = 0x00  # protocol value for 'auto'
     OFF = 0x01   # protocol value for 'off'
 
@@ -258,6 +261,7 @@ class ComfoCoolMode(IntEnum):
 
 
 class BypassMode(IntEnum):
+    """Enum representing bypass operating modes."""
     AUTO = 0    # 0000000000080700000000000000 = auto
     OPEN = 1    # 0100000000100e00000b0e000001 = open
     CLOSED = 2  # 0100000000100e00000d0e000002 = closed
@@ -267,6 +271,7 @@ class BypassMode(IntEnum):
 
 
 class AirflowSpeed(IntEnum):
+    """Enum representing airflow speed levels."""
     AWAY = 3
     LOW = 4
     MEDIUM = 5

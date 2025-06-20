@@ -56,8 +56,6 @@ TIMEOUT: int = 5
 class SelfDeregistrationError(Exception):
     """Exception raised when trying to deregister self."""
 
-    pass
-
 
 class EventBus:
     """An event bus for async replies.
@@ -76,7 +74,7 @@ class EventBus:
             event_name (int): The event reference number.
             future (asyncio.Future): The future to be set when the event is emitted.
         """
-        _LOGGER.debug(f"Adding listener for event {event_name}")
+        _LOGGER.debug("Adding listener for event %s", event_name)
         if not self.listeners.get(event_name, None):
             self.listeners[event_name] = {future}
         else:
@@ -89,7 +87,7 @@ class EventBus:
             event_name (int): The event reference number.
             event (Any): The event object or exception to set on the futures.
         """
-        _LOGGER.debug(f"Emitting for event {event_name}")
+        _LOGGER.debug("Emitting for event %s", event_name)
         futures = self.listeners.get(event_name, set())
         for future in futures:
             if isinstance(event, Exception):
@@ -165,11 +163,11 @@ class Bridge:
         Raises:
             AioComfoConnectTimeout: If connection times out.
         """
-        _LOGGER.debug(f"Connecting to bridge {self.host}")
+        _LOGGER.debug("Connecting to bridge %s", self.host)
         try:
             self._reader, self._writer = await asyncio.wait_for(asyncio.open_connection(self.host, self.PORT), TIMEOUT)
         except asyncio.TimeoutError as exc:
-            _LOGGER.warning(f"Timeout while connecting to bridge {self.host}")
+            _LOGGER.warning("Timeout while connecting to bridge %s", self.host)
             raise AioComfoConnectTimeout("Timeout while connecting to bridge") from exc
 
         self._reference = 1
@@ -186,7 +184,7 @@ class Bridge:
                     raise AioComfoConnectNotConnected("We have been disconnected") from exc
 
         self._read_task = self._loop.create_task(_read_messages())
-        _LOGGER.debug(f"Connected to bridge {self.host}")
+        _LOGGER.debug("Connected to bridge %s", self.host)
         return self._read_task
 
     async def _disconnect(self) -> None:
@@ -314,7 +312,7 @@ class Bridge:
         Args:
             message (Message): The message to transmit.
         """
-        _LOGGER.debug(f"TX {message}")
+        _LOGGER.debug("TX %s", message)
         self._writer.write(message.encode())
         await self._writer.drain()
         self._reference += 1
@@ -362,7 +360,7 @@ class Bridge:
         msg_len = int.from_bytes(msg_len_buf, byteorder="big")
         msg_buf = await self._reader.readexactly(msg_len)
         message = Message.decode(msg_buf)
-        _LOGGER.debug(f"RX {message}")
+        _LOGGER.debug("RX %s", message)
         match message.cmd.result:
             case zehnder_pb2.GatewayOperation.OK:
                 pass
@@ -411,7 +409,7 @@ class Bridge:
                 case _ if message.cmd.reference:
                     self._event_bus.emit(message.cmd.reference, message.msg)
                 case _:
-                    _LOGGER.warning(f"Unhandled message type {message.cmd.type}: {message}")
+                    _LOGGER.warning("Unhandled message type %s: %s", message.cmd.type, message)
         except asyncio.IncompleteReadError as exc:
             _LOGGER.info("The connection was closed.")
             await self._disconnect()
@@ -420,7 +418,7 @@ class Bridge:
             if exc.message.cmd.reference:
                 self._event_bus.emit(exc.message.cmd.reference, exc)
         except DecodeError as exc:
-            _LOGGER.error(f"Failed to decode message: {exc}")
+            _LOGGER.error("Failed to decode message: %s", exc)
 
     @log_call
     def cmd_start_session(self, take_over: bool = False) -> Awaitable[Message]:
@@ -578,7 +576,6 @@ class Bridge:
             zehnder_pb2.GatewayOperation.KeepAliveType,
             reply=False,
         )
-
 
 class Message:
     """A message that is sent to the bridge.
