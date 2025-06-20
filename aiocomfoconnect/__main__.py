@@ -34,21 +34,12 @@ import sys
 
 from aiocomfoconnect import DEFAULT_NAME, DEFAULT_PIN, DEFAULT_UUID
 from aiocomfoconnect.comfoconnect import ComfoConnect
-from aiocomfoconnect.const import (
-    VentilationMode,
-    VentilationSetting,
-    VentilationBalance,
-    VentilationTemperatureProfile,
-    VentilationSpeed,
-    ComfoCoolMode,
-)
 from aiocomfoconnect.discovery import discover_bridges
 from aiocomfoconnect.exceptions import (
     AioComfoConnectNotConnected,
     AioComfoConnectTimeout,
     BridgeNotFoundException,
     ComfoConnectNotAllowed,
-    UnknownActionException,
 )
 from aiocomfoconnect.properties import Property
 from aiocomfoconnect.sensors import SENSORS
@@ -369,14 +360,198 @@ COMMAND_CONFIG = {
             {"name": "--host", "help": "Host address of the bridge"},
             {"name": "--uuid", "help": "UUID of this app", "default": DEFAULT_UUID}
         ]
+    },
+    "set-boost": {
+        "help": "set boost mode",
+        "func": run_set_boost,
+        "args": [
+            {"name": "mode", "help": "Boost mode", "choices": ["on", "off"]},
+            {"name": "--timeout", "help": "Timeout in seconds", "type": int, "default": None},
+            {"name": "--host", "help": "Host address of the bridge"},
+            {"name": "--uuid", "help": "UUID of this app", "default": DEFAULT_UUID}
+        ]
+    },
+    "show-sensors": {
+        "help": "show all sensor values",
+        "func": run_show_sensors,
+        "args": [
+            {"name": "--host", "help": "Host address of the bridge"},
+            {"name": "--uuid", "help": "UUID of this app", "default": DEFAULT_UUID}
+        ]
+    },
+    "show-sensor": {
+        "help": "show a specific sensor value",
+        "func": run_show_sensor,
+        "args": [
+            {"name": "sensor", "help": "Sensor ID", "type": int},
+            {"name": "--follow", "help": "Keep showing sensor values", "action": "store_true"},
+            {"name": "--host", "help": "Host address of the bridge"},
+            {"name": "--uuid", "help": "UUID of this app", "default": DEFAULT_UUID}
+        ]
+    },
+    "list-sensors": {
+        "help": "list all known sensors",
+        "func": run_list_sensors,
+        "args": []
+    },
+    "get-property": {
+        "help": "get a property value",
+        "func": run_get_property,
+        "args": [
+            {"name": "unit", "help": "Unit ID", "type": int},
+            {"name": "subunit", "help": "Subunit ID", "type": int},
+            {"name": "property_id", "help": "Property ID", "type": int},
+            {"name": "--node-id", "help": "Node ID", "type": int, "default": DEFAULT_NODE_ID},
+            {"name": "--property-type", "help": "Property type", "type": int, "default": DEFAULT_PROPERTY_TYPE},
+            {"name": "--host", "help": "Host address of the bridge"},
+            {"name": "--uuid", "help": "UUID of this app", "default": DEFAULT_UUID}
+        ]
+    },
+    "get-flow-for-speed": {
+        "help": "get configured airflow for a speed",
+        "func": run_get_flow_for_speed,
+        "args": [
+            {"name": "speed", "help": "Fan speed", "choices": ["low", "medium", "high"]},
+            {"name": "--host", "help": "Host address of the bridge"},
+            {"name": "--uuid", "help": "UUID of this app", "default": DEFAULT_UUID}
+        ]
+    },
+    "set-flow-for-speed": {
+        "help": "set configured airflow for a speed",
+        "func": run_set_flow_for_speed,
+        "args": [
+            {"name": "speed", "help": "Fan speed", "choices": ["low", "medium", "high"]},
+            {"name": "flow", "help": "Airflow value", "type": int},
+            {"name": "--host", "help": "Host address of the bridge"},
+            {"name": "--uuid", "help": "UUID of this app", "default": DEFAULT_UUID}
+        ]
+    },
+    "get-temperature-profile": {
+        "help": "get the current temperature profile",
+        "func": run_get_temperature_profile,
+        "args": [
+            {"name": "--host", "help": "Host address of the bridge"},
+            {"name": "--uuid", "help": "UUID of this app", "default": DEFAULT_UUID}
+        ]
+    },
+    "set-temperature-profile": {
+        "help": "set the temperature profile",
+        "func": run_set_temperature_profile,
+        "args": [
+            {"name": "profile", "help": "Temperature profile", "choices": ["normal", "cool", "warm"]},
+            {"name": "--host", "help": "Host address of the bridge"},
+            {"name": "--uuid", "help": "UUID of this app", "default": DEFAULT_UUID}
+        ]
+    },
+    "get-comfocool": {
+        "help": "get the current ComfoCool mode",
+        "func": run_get_comfocool,
+        "args": [
+            {"name": "--host", "help": "Host address of the bridge"},
+            {"name": "--uuid", "help": "UUID of this app", "default": DEFAULT_UUID}
+        ]
+    },
+    "set-comfocool": {
+        "help": "set ComfoCool mode",
+        "func": run_set_comfocool,
+        "args": [
+            {"name": "mode", "help": "ComfoCool mode", "choices": ["auto", "on", "off"]},
+            {"name": "--host", "help": "Host address of the bridge"},
+            {"name": "--uuid", "help": "UUID of this app", "default": DEFAULT_UUID}
+        ]
+    },
+    "get-bypass": {
+        "help": "get the current bypass mode",
+        "func": run_get_bypass,
+        "args": [
+            {"name": "--host", "help": "Host address of the bridge"},
+            {"name": "--uuid", "help": "UUID of this app", "default": DEFAULT_UUID}
+        ]
+    },
+    "set-bypass": {
+        "help": "set bypass mode",
+        "func": run_set_bypass,
+        "args": [
+            {"name": "mode", "help": "Bypass mode", "choices": ["auto", "on", "off"]},
+            {"name": "--host", "help": "Host address of the bridge"},
+            {"name": "--uuid", "help": "UUID of this app", "default": DEFAULT_UUID}
+        ]
+    },
+    "get-balance-mode": {
+        "help": "get the current balance mode",
+        "func": run_get_balance_mode,
+        "args": [
+            {"name": "--host", "help": "Host address of the bridge"},
+            {"name": "--uuid", "help": "UUID of this app", "default": DEFAULT_UUID}
+        ]
+    },
+    "set-balance-mode": {
+        "help": "set balance mode",
+        "func": run_set_balance_mode,
+        "args": [
+            {"name": "mode", "help": "Balance mode", "choices": ["balance", "supply_only", "extract_only"]},
+            {"name": "--host", "help": "Host address of the bridge"},
+            {"name": "--uuid", "help": "UUID of this app", "default": DEFAULT_UUID}
+        ]
+    },
+    "get-sensor-ventmode-temperature-passive": {
+        "help": "get sensor ventmode temperature passive setting",
+        "func": run_get_sensor_ventmode_temperature_passive,
+        "args": [
+            {"name": "--host", "help": "Host address of the bridge"},
+            {"name": "--uuid", "help": "UUID of this app", "default": DEFAULT_UUID}
+        ]
+    },
+    "set-sensor-ventmode-temperature-passive": {
+        "help": "set sensor ventmode temperature passive setting",
+        "func": run_set_sensor_ventmode_temperature_passive,
+        "args": [
+            {"name": "mode", "help": "Temperature passive mode", "choices": ["auto", "on", "off"]},
+            {"name": "--host", "help": "Host address of the bridge"},
+            {"name": "--uuid", "help": "UUID of this app", "default": DEFAULT_UUID}
+        ]
+    },
+    "get-sensor-ventmode-humidity-comfort": {
+        "help": "get sensor ventmode humidity comfort setting",
+        "func": run_get_sensor_ventmode_humidity_comfort,
+        "args": [
+            {"name": "--host", "help": "Host address of the bridge"},
+            {"name": "--uuid", "help": "UUID of this app", "default": DEFAULT_UUID}
+        ]
+    },
+    "set-sensor-ventmode-humidity-comfort": {
+        "help": "set sensor ventmode humidity comfort setting",
+        "func": run_set_sensor_ventmode_humidity_comfort,
+        "args": [
+            {"name": "mode", "help": "Humidity comfort mode", "choices": ["auto", "on", "off"]},
+            {"name": "--host", "help": "Host address of the bridge"},
+            {"name": "--uuid", "help": "UUID of this app", "default": DEFAULT_UUID}
+        ]
+    },
+    "get-sensor-ventmode-humidity-protection": {
+        "help": "get sensor ventmode humidity protection setting",
+        "func": run_get_sensor_ventmode_humidity_protection,
+        "args": [
+            {"name": "--host", "help": "Host address of the bridge"},
+            {"name": "--uuid", "help": "UUID of this app", "default": DEFAULT_UUID}
+        ]
+    },
+    "set-sensor-ventmode-humidity-protection": {
+        "help": "set sensor ventmode humidity protection setting",
+        "func": run_set_sensor_ventmode_humidity_protection,
+        "args": [
+            {"name": "mode", "help": "Humidity protection mode", "choices": ["auto", "on", "off"]},
+            {"name": "--host", "help": "Host address of the bridge"},
+            {"name": "--uuid", "help": "UUID of this app", "default": DEFAULT_UUID}
+        ]
     }
 }
 
-def setup_parser() -> argparse.ArgumentParser:
+def setup_argument_parser() -> argparse.ArgumentParser:
     """Create and configure the argument parser."""
-    parser = argparse.ArgumentParser(description="aiocomfoconnect CLI for ComfoConnect LAN C devices")
-    parser.add_argument("--debug", "-d", help="Enable debug logging", default=False, action="store_true")
-    subparsers = parser.add_subparsers(required=True, dest="action")
+    argument_parser = argparse.ArgumentParser(description="aiocomfoconnect CLI for ComfoConnect LAN C devices")
+    argument_parser.add_argument("--debug", "-d", help="Enable debug logging", default=False, action="store_true")
+    subparsers = argument_parser.add_subparsers(required=True, dest="action")
     
     # Create subparsers from configuration
     for cmd_name, cmd_config in COMMAND_CONFIG.items():
@@ -389,7 +564,7 @@ def setup_parser() -> argparse.ArgumentParser:
             arg_name = arg_dict.pop("name")
             subparser.add_argument(arg_name, **arg_dict)
     
-    return parser
+    return argument_parser
 
 
 async def main(args: argparse.Namespace) -> None:
@@ -398,7 +573,7 @@ async def main(args: argparse.Namespace) -> None:
 
 if __name__ == "__main__":
     try:
-        parser = setup_parser()
+        parser = setup_argument_parser()
         arguments = parser.parse_args()
         if arguments.debug:
             logging.basicConfig(level=logging.DEBUG)
