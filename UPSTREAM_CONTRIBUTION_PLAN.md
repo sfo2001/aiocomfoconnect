@@ -27,9 +27,11 @@ Plan to reorganize 42 commits (d66b747..HEAD) into 8 logical, reviewable PRs for
   - Commit: 1b5b442 (cherry-picked from 10a82f5)
   - Status: Merged to clean master, pushed to GitHub
   - Quality Gates: Phase 1 passed (CLI validation, basic import)
-- 🔄 **PR2 IN PROGRESS** - "Fix discovery broadcast address issue"
-  - Branch: `upstream/pr2-fix-eafp-lbyl` (will rename appropriately)
-  - Target: Discovery process broadcast fix
+- ✅ **PR2 COMPLETED** - "Fix discovery broadcast address issue"
+  - Branch: `upstream/pr2-fix-discovery-broadcast`
+  - Commit: 4c2fc07 (cherry-picked from 7dd94ad)
+  - Status: Merged to clean master, pushed to GitHub
+  - Quality Gates: Phase 1 passed (CLI validation, basic import, discovery command tested)
 
 ## REVISED Logical Grouping Strategy
 
