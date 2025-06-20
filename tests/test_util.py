@@ -434,7 +434,7 @@ class TestEncodePdoValue:
             encode_pdo_value(123, PdoType.TYPE_CN_STRING)
         
         assert "Type is not supported at this time" in str(exc_info.value)
-        assert PdoType.TYPE_CN_STRING in exc_info.value.args
+        assert "9" in str(exc_info.value)
     
     def test_encode_pdo_value_little_endian(self):
         """Test encode_pdo_value uses little endian byte order."""

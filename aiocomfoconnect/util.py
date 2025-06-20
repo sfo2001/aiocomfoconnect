@@ -7,12 +7,18 @@ All functions are type-annotated and documented according to PEP 257 and Google 
 
 from __future__ import annotations
 
-from aiocomfoconnect.const import PdoType, CAN_ID_OFFSET, PDO_SHIFT, UINT64_BITS, CONSTRAINT_BITS
+from aiocomfoconnect.const import (
+    CAN_ID_OFFSET,
+    CONSTRAINT_BITS,
+    PDO_SHIFT,
+    UINT64_BITS,
+    PdoType,
+)
 
 
 def bytestring(arr: list[int | bytes]) -> bytes:
     """Join an array of bytes/integers into a bytestring. Unlike `bytes()`, this method supports a mixed array with integers and bytes.
-    
+
     Args:
         arr (list[int | bytes]): List of integers or bytes.
 
