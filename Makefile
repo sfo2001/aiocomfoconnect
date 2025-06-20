@@ -1,7 +1,7 @@
 check: check-pylint check-black
 
 check-pylint:
-	@poetry run pylint aiocomfoconnect/*.py
+	@poetry run pylint --load-plugins=pylint_protobuf aiocomfoconnect/*.py
 
 check-black:
 	@poetry run black --check aiocomfoconnect/*.py

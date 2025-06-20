@@ -45,6 +45,8 @@ pylint = "^3.2"
 pytest = "^8.2.0"
 pytest-asyncio = "^0.23.0"
 pytest-cov = "^4.0.0"
+mypy = "^1.16.1"
+pylint-protobuf = "^0.22.0"
 
 [tool.isort]
 profile = "black"
