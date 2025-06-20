@@ -66,7 +66,8 @@ generated-members = [
 ]
 extension-pkg-allow-list = [
     "aiocomfoconnect.protobuf.zehnder_pb2",
-    "aiocomfoconnect.protobuf.nanopb_pb2"
+    "aiocomfoconnect.protobuf.nanopb_pb2",
+    "netifaces"
 ]
 
 [tool.pylint."MESSAGES CONTROL"]
@@ -123,3 +124,6 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
+filterwarnings = [
+    "ignore:coroutine.*was never awaited:RuntimeWarning"
+]

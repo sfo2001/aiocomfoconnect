@@ -88,7 +88,7 @@ class TestBridgeDiscoveryProtocol:
         mock_transport = MagicMock()
         
         with patch('asyncio.get_running_loop') as mock_loop:
-            with patch('netifaces.gateways', side_effect=Exception("Network error")):
+            with patch('netifaces.gateways', side_effect=OSError("Network error")):
                 mock_loop.return_value.create_future.return_value = AsyncMock()
                 mock_loop.return_value.call_later.return_value = MagicMock()
                 

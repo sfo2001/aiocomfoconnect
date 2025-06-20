@@ -17,7 +17,7 @@ Example:
 import asyncio
 import logging
 from enum import Enum
-from typing import Callable, List, Any
+from typing import Any, Callable, List
 
 from aiocomfoconnect import Bridge
 from aiocomfoconnect.const import (
@@ -34,15 +34,15 @@ from aiocomfoconnect.const import (
     UNIT_SCHEDULE,
     UNIT_TEMPHUMCONTROL,
     UNIT_VENTILATIONCONFIG,
+    AirflowSpeed,
+    BypassMode,
     ComfoCoolMode,
     PdoType,
-    AirflowSpeed,
     VentilationBalance,
     VentilationMode,
     VentilationSetting,
     VentilationSpeed,
     VentilationTemperatureProfile,
-    BypassMode,
 )
 from aiocomfoconnect.exceptions import (
     AioComfoConnectNotConnected,
@@ -74,8 +74,8 @@ def _convert_to_enum(value: str | int, enum_class: type[Enum], context: str) -> 
     if isinstance(value, int):
         try:
             return enum_class(value)
-        except ValueError:
-            raise ValueError(f"Invalid {context}: {value}")
+        except ValueError as exc:
+            raise ValueError(f"Invalid {context}: {value}") from exc
 
     # Handle string values
     value_str = str(value).strip().upper()
@@ -86,8 +86,8 @@ def _convert_to_enum(value: str | int, enum_class: type[Enum], context: str) -> 
         try:
             # Try by int value (e.g., '0' -> VentilationMode(0))
             return enum_class(int(value))
-        except (ValueError, TypeError):
-            raise ValueError(f"Invalid {context}: {value}")
+        except (ValueError, TypeError) as exc:
+            raise ValueError(f"Invalid {context}: {value}") from exc
 
 
 class ComfoConnect(Bridge):
@@ -357,8 +357,8 @@ class ComfoConnect(Bridge):
         mode = await self._get_mode_value(subunit, extra_param)
         try:
             return enum_class(mode)
-        except ValueError:
-            raise ValueError(f"Invalid {context}: {mode}")
+        except ValueError as exc:
+            raise ValueError(f"Invalid {context}: {mode}") from exc
 
     async def _get_boolean_value(self, subunit: int, extra_param: int) -> bool:
         """Generic helper to get boolean values.
@@ -512,7 +512,7 @@ class ComfoConnect(Bridge):
             return
         sensor = self._sensors.get(sensor_id)
         if sensor is None:
-            _LOGGER.error(f"Unknown sensor id: {sensor_id}")
+            _LOGGER.error("Unknown sensor id: %s", sensor_id)
             return
         self._sensors_values[sensor_id] = sensor_value
 
@@ -785,8 +785,8 @@ class ComfoConnect(Bridge):
         mode = int.from_bytes(result.message, "little")
         try:
             return VentilationSetting(mode)
-        except ValueError:
-            raise ValueError(f"Invalid mode: {mode}")
+        except ValueError as exc:
+            raise ValueError(f"Invalid mode: {mode}") from exc
 
     async def get_sensor_ventmode_temperature_passive(self) -> str:
         """Backwards-compatible: Get sensor based ventilation mode - temperature passive as string ('auto', 'on', 'off')."""
@@ -810,8 +810,8 @@ class ComfoConnect(Bridge):
         mode = int.from_bytes(result.message, "little")
         try:
             return VentilationSetting(mode)
-        except ValueError:
-            raise ValueError(f"Invalid mode: {mode}")
+        except ValueError as exc:
+            raise ValueError(f"Invalid mode: {mode}") from exc
 
     async def get_sensor_ventmode_humidity_comfort(self) -> str:
         """Backwards-compatible: Get sensor based ventilation mode - humidity comfort as string ('auto', 'on', 'off')."""
@@ -835,8 +835,8 @@ class ComfoConnect(Bridge):
         mode = int.from_bytes(result.message, "little")
         try:
             return VentilationSetting(mode)
-        except ValueError:
-            raise ValueError(f"Invalid mode: {mode}")
+        except ValueError as exc:
+            raise ValueError(f"Invalid mode: {mode}") from exc
 
     async def get_sensor_ventmode_humidity_protection(self) -> str:
         """Backwards-compatible: Get sensor based ventilation mode - humidity protection as string ('auto', 'on', 'off')."""

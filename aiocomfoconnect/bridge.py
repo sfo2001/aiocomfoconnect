@@ -26,10 +26,12 @@ import asyncio
 import logging
 import struct
 from asyncio import StreamReader, StreamWriter
-from typing import Awaitable, Callable, Any
+from typing import Any, Awaitable, Callable
 
 from google.protobuf.message import DecodeError
 from google.protobuf.message import Message as ProtobufMessage
+
+from aiocomfoconnect.decorators import log_call
 
 from .exceptions import (
     AioComfoConnectNotConnected,
@@ -45,8 +47,6 @@ from .exceptions import (
     ComfoConnectRmiError,
 )
 from .protobuf import zehnder_pb2
-
-from aiocomfoconnect.decorators import log_call
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -579,6 +579,7 @@ class Bridge:
             zehnder_pb2.GatewayOperation.KeepAliveType,
             reply=False,
         )
+
 
 class Message:
     """A message that is sent to the bridge.

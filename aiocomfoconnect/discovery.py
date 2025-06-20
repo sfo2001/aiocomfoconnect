@@ -28,7 +28,9 @@ from __future__ import annotations
 import asyncio
 import logging
 from typing import Any
+
 import netifaces
+from google.protobuf.message import DecodeError
 
 from .bridge import Bridge
 from .protobuf import zehnder_pb2
@@ -38,6 +40,7 @@ DEFAULT_TIMEOUT: int = 1
 BROADCAST_FALLBACK: str = "255.255.255.255"
 
 _LOGGER = logging.getLogger(__name__)
+
 
 class BridgeDiscoveryProtocol(asyncio.DatagramProtocol):
     """UDP Protocol for discovering ComfoConnect LAN C bridges on the local network.
@@ -81,20 +84,20 @@ class BridgeDiscoveryProtocol(asyncio.DatagramProtocol):
         self.transport = transport
 
         if self._target:
-            _LOGGER.debug(f"Sending discovery request to {self._target}:{Bridge.PORT}")
+            _LOGGER.debug("Sending discovery request to %s:%s", self._target, Bridge.PORT)
             self.transport.sendto(DISCOVERY_REQUEST, (self._target, Bridge.PORT))
         else:
             # Determine broadcast address programmatically
             broadcast_addr = BROADCAST_FALLBACK
             try:
                 gws = netifaces.gateways()
-                if (default_gw := gws.get('default')) and (inet := default_gw.get(netifaces.AF_INET)):
+                if (default_gw := gws.get("default")) and (inet := default_gw.get(netifaces.AF_INET)):
                     default_iface = inet[1]
                     addrs = netifaces.ifaddresses(default_iface)
-                    broadcast_addr = addrs[netifaces.AF_INET][0].get('broadcast', BROADCAST_FALLBACK)
-            except Exception as e:
-                _LOGGER.warning(f"Could not determine broadcast address, using {BROADCAST_FALLBACK}: {e}")
-            _LOGGER.debug(f"Sending discovery request to broadcast:{Bridge.PORT} ({broadcast_addr})")
+                    broadcast_addr = addrs[netifaces.AF_INET][0].get("broadcast", BROADCAST_FALLBACK)
+            except (OSError, KeyError, ValueError, AttributeError) as e:
+                _LOGGER.warning("Could not determine broadcast address, using %s: %s", BROADCAST_FALLBACK, e)
+            _LOGGER.debug("Sending discovery request to broadcast:%s (%s)", Bridge.PORT, broadcast_addr)
             self.transport.sendto(DISCOVERY_REQUEST, (broadcast_addr, Bridge.PORT))
 
     def datagram_received(self, data: bytes | str, addr: tuple[str | Any, int]) -> None:
@@ -105,21 +108,16 @@ class BridgeDiscoveryProtocol(asyncio.DatagramProtocol):
             addr (tuple): The address of the sender.
         """
         if data == DISCOVERY_REQUEST:
-            _LOGGER.debug(f"Ignoring discovery request from {addr[0]}:{addr[1]}")
+            _LOGGER.debug("Ignoring discovery request from %s:%s", addr[0], addr[1])
             return
 
-        _LOGGER.debug(f"Data received from {addr}: {data}")
+        _LOGGER.debug("Data received from %s: %s", addr, data)
         try:
             parser = zehnder_pb2.DiscoveryOperation()  # pylint: disable=no-member
             parser.ParseFromString(data)
-            self._bridges.append(
-                Bridge(
-                    host=parser.searchGatewayResponse.ipaddress,
-                    uuid=parser.searchGatewayResponse.uuid.hex()
-                )
-            )
-        except Exception as exc:
-            _LOGGER.error(f"Failed to parse discovery response from {addr}: {exc}")
+            self._bridges.append(Bridge(host=parser.searchGatewayResponse.ipaddress, uuid=parser.searchGatewayResponse.uuid.hex()))
+        except (DecodeError, AttributeError, ValueError) as exc:
+            _LOGGER.error("Failed to parse discovery response from %s: %s", addr, exc)
             return
 
         # If a target is specified, stop after first response
@@ -142,11 +140,8 @@ class BridgeDiscoveryProtocol(asyncio.DatagramProtocol):
         """
         return self._future
 
-async def discover_bridges(
-    host: str | None = None,
-    timeout: int = DEFAULT_TIMEOUT,
-    loop: asyncio.AbstractEventLoop | None = None
-) -> list[Bridge]:
+
+async def discover_bridges(host: str | None = None, timeout: int = DEFAULT_TIMEOUT, loop: asyncio.AbstractEventLoop | None = None) -> list[Bridge]:
     """Discover ComfoConnect bridges on the local network or at a specified host.
 
     Send a UDP broadcast (or unicast if a host is specified) to discover available

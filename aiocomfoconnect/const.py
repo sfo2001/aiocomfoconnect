@@ -1,10 +1,12 @@
 """ Constants """
 
-from enum import IntEnum, Enum
+from enum import Enum, IntEnum
+
 
 # PDO Types
 class PdoType(IntEnum):
     """Defines a PDO type."""
+
     TYPE_CN_BOOL = 0x00
     TYPE_CN_UINT8 = 0x01
     TYPE_CN_UINT16 = 0x02
@@ -172,6 +174,7 @@ ERRORS_140: dict[int, str] = {
 
 class VentilationMode(Enum):
     """Enum representing the main ventilation mode (manual/auto)."""
+
     AUTO = 0
     MANUAL = 1
 
@@ -180,6 +183,8 @@ class VentilationMode(Enum):
 
 
 class VentilationSetting(IntEnum):
+    """Enumeration for sensor-based ventilation settings (OFF/AUTO/ON)."""
+
     OFF = 0x00
     AUTO = 0x01
     ON = 0x02
@@ -204,6 +209,7 @@ class VentilationBalance(Enum):
     - See aiocomfoconnect/comfoconnect.py:get_balance_mode for details
     - Any other combination is considered invalid
     """
+
     BALANCE = (0, 0)
     SUPPLY_ONLY = (1, 0)
     EXHAUST_ONLY = (0, 1)
@@ -232,9 +238,10 @@ class VentilationBalance(Enum):
 
 class VentilationTemperatureProfile(IntEnum):
     """Enum representing ventilation temperature profiles."""
+
     NORMAL = 0  # 0100000000ffffffffffffffff00 = normal
-    COOL = 1    # 0100000000ffffffffffffffff01 = cool
-    WARM = 2    # 0100000000ffffffffffffffff02 = warm
+    COOL = 1  # 0100000000ffffffffffffffff01 = cool
+    WARM = 2  # 0100000000ffffffffffffffff02 = warm
 
     def __str__(self) -> str:
         return self.name.lower()
@@ -242,19 +249,21 @@ class VentilationTemperatureProfile(IntEnum):
 
 class VentilationSpeed(IntEnum):
     """Enum representing ventilation speed levels."""
-    AWAY = 0    # 0100000000ffffffffffffffff00 = away
-    LOW = 1     # 0100000000ffffffffffffffff01 = low
+
+    AWAY = 0  # 0100000000ffffffffffffffff00 = away
+    LOW = 1  # 0100000000ffffffffffffffff01 = low
     MEDIUM = 2  # 0100000000ffffffffffffffff02 = medium
-    HIGH = 3    # 0100000000ffffffffffffffff03 = high
-   
+    HIGH = 3  # 0100000000ffffffffffffffff03 = high
+
     def __str__(self) -> str:
         return self.name.lower()
 
 
 class ComfoCoolMode(IntEnum):
     """Enum representing ComfoCool operating modes."""
+
     AUTO = 0x00  # protocol value for 'auto'
-    OFF = 0x01   # protocol value for 'off'
+    OFF = 0x01  # protocol value for 'off'
 
     def __str__(self) -> str:
         return self.name.lower()
@@ -262,16 +271,18 @@ class ComfoCoolMode(IntEnum):
 
 class BypassMode(IntEnum):
     """Enum representing bypass operating modes."""
-    AUTO = 0    # 0000000000080700000000000000 = auto
-    OPEN = 1    # 0100000000100e00000b0e000001 = open
+
+    AUTO = 0  # 0000000000080700000000000000 = auto
+    OPEN = 1  # 0100000000100e00000b0e000001 = open
     CLOSED = 2  # 0100000000100e00000d0e000002 = closed
-    
+
     def __str__(self) -> str:
         return self.name.lower()
 
 
 class AirflowSpeed(IntEnum):
     """Enum representing airflow speed levels."""
+
     AWAY = 3
     LOW = 4
     MEDIUM = 5
