@@ -107,7 +107,7 @@ class TestLogCallDecorator:
         mock_self = MagicMock()
         test_function(mock_self)
         
-        mock_logger.debug.assert_called_once_with("test_function called")
+        mock_logger.debug.assert_called_once_with("%s called", "test_function")
     
     @patch('aiocomfoconnect.decorators._LOGGER')
     def test_log_call_decorator_logs_different_function_names(self, mock_logger):
@@ -127,9 +127,10 @@ class TestLogCallDecorator:
         
         # Check that both functions were logged
         assert mock_logger.debug.call_count == 2
-        calls = [call[0][0] for call in mock_logger.debug.call_args_list]
-        assert "function_one called" in calls
-        assert "function_two called" in calls
+        # Check the format strings and function names
+        calls = mock_logger.debug.call_args_list
+        assert calls[0][0] == ("%s called", "function_one")
+        assert calls[1][0] == ("%s called", "function_two")
     
     @patch('aiocomfoconnect.decorators._LOGGER')
     def test_log_call_decorator_logs_even_with_exception(self, mock_logger):
@@ -143,7 +144,7 @@ class TestLogCallDecorator:
         with pytest.raises(RuntimeError):
             test_function(mock_self)
         
-        mock_logger.debug.assert_called_once_with("test_function called")
+        mock_logger.debug.assert_called_once_with("%s called", "test_function")
     
     def test_log_call_decorator_preserves_function_metadata(self):
         """Test log_call decorator preserves original function name."""
@@ -182,7 +183,7 @@ class TestLogCallDecorator:
         instance = TestClass()
         instance.test_method()
         
-        mock_logger.debug.assert_called_once_with("test_method called")
+        mock_logger.debug.assert_called_once_with("%s called", "test_method")
     
     def test_log_call_decorator_can_be_stacked(self):
         """Test log_call decorator can be stacked with other decorators."""
@@ -218,7 +219,7 @@ class TestLogCallDecorator:
         mock_self = MagicMock()
         test_function(mock_self)
         
-        mock_logger.debug.assert_called_once_with("test_function called")
+        mock_logger.debug.assert_called_once_with("%s called", "test_function")
 
 
 class TestLoggerConfiguration:
