@@ -1,8 +1,10 @@
 """ Constants """
 
+from enum import Enum, IntEnum
+
 
 # PDO Types
-class PdoType:
+class PdoType(IntEnum):
     """Defines a PDO type."""
 
     TYPE_CN_BOOL = 0x00
@@ -63,7 +65,7 @@ SUBUNIT_06 = 0x06
 SUBUNIT_07 = 0x07
 SUBUNIT_08 = 0x08
 
-ERRORS_BASE = {
+ERRORS_BASE: dict[int, str] = {
     21: "DANGER! OVERHEATING! Two or more sensors are detecting an incorrect temperature. Ventilation has stopped.",
     22: "Temperature too high for ComfoAir Q (TEMP_HRU ERROR)",
     23: "The extract air temperature sensor has a malfunction (SENSOR_ETA ERROR)",
@@ -109,7 +111,7 @@ ERRORS_BASE = {
     69: "Postheater was present, but is no longer detected (POSTHEAT_CONNECT ERROR)",
 }
 
-ERRORS = {
+ERRORS: dict[int, str] = {
     **ERRORS_BASE,
     70: "Analog input 1 was present, but is no longer detected (ANALOG_1_PRES ERROR)",
     71: "Analog input 2 was present, but is no longer detected (ANALOG_2_PRES ERROR)",
@@ -148,7 +150,7 @@ ERRORS = {
     104: "CO₂ Sensor C error",
 }
 
-ERRORS_140 = {
+ERRORS_140: dict[int, str] = {
     **ERRORS_BASE,
     70: "ComfoHood was present, but is no longer detected (HOOD_CONNECT ERROR)",
     71: "ComfoCool was present, but is no longer detected (CCOOL_CONNECT ERROR)",
@@ -170,48 +172,161 @@ ERRORS_140 = {
 }
 
 
-class VentilationMode:
-    """Enum for ventilation modes."""
+class VentilationMode(Enum):
+    """Enum representing the main ventilation mode (manual/auto)."""
 
-    MANUAL = "manual"
-    AUTO = "auto"
+    AUTO = 0
+    MANUAL = 1
 
-
-class VentilationSetting:
-    """Enum for ventilation settings."""
-
-    AUTO = "auto"
-    ON = "on"
-    OFF = "off"
+    def __str__(self) -> str:
+        return self.name.lower()
 
 
-class VentilationBalance:
-    """Enum for ventilation balance."""
+class VentilationSetting(IntEnum):
+    """Enumeration for sensor-based ventilation settings (OFF/AUTO/ON)."""
 
-    BALANCE = "balance"
-    SUPPLY_ONLY = "supply_only"
-    EXHAUST_ONLY = "exhaust_only"
+    OFF = 0x00
+    AUTO = 0x01
+    ON = 0x02
 
-
-class VentilationTemperatureProfile:
-    """Enum for ventilation temperature profiles."""
-
-    WARM = "warm"
-    NORMAL = "normal"
-    COOL = "cool"
+    def __str__(self) -> str:
+        return self.name.lower()
 
 
-class VentilationSpeed:
-    """Enum for ventilation speeds."""
+class VentilationBalance(Enum):
+    """
+    Enum representing the ventilation balance mode.
 
-    AWAY = "away"
-    LOW = "low"
-    MEDIUM = "medium"
-    HIGH = "high"
+    The mode is determined by the combination of the first byte (message[0])
+    from the RMI responses of subunits 06 and 07:
+
+    - (0, 0): BALANCE mode (both supply and exhaust active)
+    - (1, 0): SUPPLY_ONLY mode (supply only)
+    - (0, 1): EXHAUST_ONLY mode (exhaust only)
+
+    This mapping was confirmed by direct device testing and protocol analysis:
+    - Setting and reading the mode via CLI and inspecting debug output
+    - See aiocomfoconnect/comfoconnect.py:get_balance_mode for details
+    - Any other combination is considered invalid
+    """
+
+    BALANCE = (0, 0)
+    SUPPLY_ONLY = (1, 0)
+    EXHAUST_ONLY = (0, 1)
+
+    @classmethod
+    def from_subunits(cls, mode_06: int, mode_07: int) -> "VentilationBalance":
+        """
+        Map the (mode_06, mode_07) tuple to the corresponding VentilationBalance enum.
+
+        Args:
+            mode_06 (int): The first byte from subunit 06's RMI response.
+            mode_07 (int): The first byte from subunit 07's RMI response.
+        Returns:
+            VentilationBalance: The corresponding enum value.
+        Raises:
+            ValueError: If the combination is not recognized.
+        """
+        for member in cls:
+            if (mode_06, mode_07) == member.value:
+                return member
+        raise ValueError(f"Invalid mode combination: 6={mode_06}, 7={mode_07}")
+
+    def __str__(self) -> str:
+        return self.name.lower()
 
 
-class ComfoCoolMode:
-    """Enum for ventilation settings."""
+class VentilationTemperatureProfile(IntEnum):
+    """Enum representing ventilation temperature profiles."""
 
-    AUTO = "auto"
-    OFF = "off"
+    NORMAL = 0  # 0100000000ffffffffffffffff00 = normal
+    COOL = 1  # 0100000000ffffffffffffffff01 = cool
+    WARM = 2  # 0100000000ffffffffffffffff02 = warm
+
+    def __str__(self) -> str:
+        return self.name.lower()
+
+
+class VentilationSpeed(IntEnum):
+    """Enum representing ventilation speed levels."""
+
+    AWAY = 0  # 0100000000ffffffffffffffff00 = away
+    LOW = 1  # 0100000000ffffffffffffffff01 = low
+    MEDIUM = 2  # 0100000000ffffffffffffffff02 = medium
+    HIGH = 3  # 0100000000ffffffffffffffff03 = high
+
+    def __str__(self) -> str:
+        return self.name.lower()
+
+
+class ComfoCoolMode(IntEnum):
+    """Enum representing ComfoCool operating modes."""
+
+    AUTO = 0x00  # protocol value for 'auto'
+    OFF = 0x01  # protocol value for 'off'
+
+    def __str__(self) -> str:
+        return self.name.lower()
+
+
+class BypassMode(IntEnum):
+    """Enum representing bypass operating modes."""
+
+    AUTO = 0  # 0000000000080700000000000000 = auto
+    OPEN = 1  # 0100000000100e00000b0e000001 = open
+    CLOSED = 2  # 0100000000100e00000d0e000002 = closed
+
+    def __str__(self) -> str:
+        return self.name.lower()
+
+
+class AirflowSpeed(IntEnum):
+    """Enum representing airflow speed levels."""
+
+    AWAY = 3
+    LOW = 4
+    MEDIUM = 5
+    HIGH = 6
+
+    def __str__(self) -> str:
+        return self.name.lower()
+
+
+# Magic numbers and bit positions for airflow constraints
+CAN_ID_OFFSET: int = 0x40
+PDO_SHIFT: int = 14
+UINT64_BITS: int = 64
+
+# Airflow constraint bit positions
+CONSTRAINT_BITS: dict[int, str] = {
+    2: "Resistance",
+    3: "Resistance",
+    4: "PreheaterNegative",
+    5: "NoiseGuard",
+    6: "ResistanceGuard",
+    7: "NoiseGuard",
+    8: "ResistanceGuard",
+    9: "FrostProtection",
+    10: "Bypass",
+    12: "AnalogInput1",
+    13: "AnalogInput2",
+    14: "AnalogInput3",
+    15: "AnalogInput4",
+    16: "Hood",
+    18: "AnalogPreset",
+    19: "ComfoCool",
+    22: "PreheaterPositive",
+    23: "RFSensorFlowPreset",
+    24: "RFSensorFlowProportional",
+    25: "TemperatureComfort",
+    26: "HumidityComfort",
+    27: "HumidityProtection",
+    47: "CO2ZoneX1",
+    48: "CO2ZoneX2",
+    49: "CO2ZoneX3",
+    50: "CO2ZoneX4",
+    51: "CO2ZoneX5",
+    52: "CO2ZoneX6",
+    53: "CO2ZoneX7",
+    54: "CO2ZoneX8",
+}
