@@ -38,12 +38,12 @@ class BridgeDiscoveryProtocol(asyncio.DatagramProtocol):
             # Determine broadcast address programmatically
             try:
                 gws = netifaces.gateways()
-                default_iface = gws['default'][netifaces.AF_INET][1]
+                default_iface = gws["default"][netifaces.AF_INET][1]
                 addrs = netifaces.ifaddresses(default_iface)
-                broadcast_addr = addrs[netifaces.AF_INET][0].get('broadcast', '255.255.255.255')
-            except Exception as e:
+                broadcast_addr = addrs[netifaces.AF_INET][0].get("broadcast", "255.255.255.255")
+            except (KeyError, ValueError, OSError) as e:
                 _LOGGER.warning("Could not determine broadcast address, using 255.255.255.255: %s", e)
-                broadcast_addr = '255.255.255.255'
+                broadcast_addr = "255.255.255.255"
             _LOGGER.debug("Sending discovery request to broadcast:%d (%s)", Bridge.PORT, broadcast_addr)
             self.transport.sendto(b"\x0a\x00", (broadcast_addr, Bridge.PORT))
 
@@ -60,7 +60,7 @@ class BridgeDiscoveryProtocol(asyncio.DatagramProtocol):
             parser.ParseFromString(data)
 
             self._bridges.append(Bridge(host=parser.searchGatewayResponse.ipaddress, uuid=parser.searchGatewayResponse.uuid.hex()))
-        except Exception as exc:
+        except (ValueError, AttributeError, TypeError) as exc:
             _LOGGER.error("Failed to parse discovery response from %s: %s", addr, exc)
             return
 
